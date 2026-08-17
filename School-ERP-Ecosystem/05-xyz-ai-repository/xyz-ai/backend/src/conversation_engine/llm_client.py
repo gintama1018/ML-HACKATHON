@@ -230,29 +230,7 @@ class LLMClient:
 
         msg_lower = last_user_msg.lower()
 
-        # Priority 1: Dedicated Greetings & Social Pleasantries
-        # (Must trigger before data tools to avoid unsolicited dumps on "Hello")
-        greeting_words = [
-            "hello", "hi", "hey", "good morning", "good afternoon", "good evening",
-            "how are you", "how are you doing", "how do you do", "nice to meet you",
-            "नमस्ते", "प्रणाम", "नमस्कार", "வணக்கம்", "নমস্কার", "హలో", "ನಮಸ್ಕಾರ"
-        ]
-        # Only treat as greeting if message is short or primarily pleasantry without attendance inquiry
-        has_greeting = any(w in msg_lower or w in last_user_msg for w in greeting_words)
-        has_data_query = any(k in msg_lower or k in last_user_msg for k in ["attendance", "percentage", "present", "absent", "mark", "report", "analytics", "उपस्थिति", "हाजिरी", "வருகை", "উপস্থিতি"])
-        
-        if has_greeting and not has_data_query:
-            role_key = f"greeting_{user.role}"
-            greeting_reply = multilingual_service.get_phrase(role_key, lang=lang, name=user.name)
-            return LLMResponse(content=greeting_reply)
-
-        # Priority 2: Academic & Homework Guidance (No false escalations)
-        homework_keywords = ["homework", "math problem", "study tip", "how to solve", "science question", "exam preparation", "subject help", "गृहकार्य", "सवाल", "படிக்க", "পড়াশোনা"]
-        if any(k in msg_lower or k in last_user_msg for k in homework_keywords) and not any(k in msg_lower for k in ["talk to teacher", "call teacher", "escalate", "contact"]):
-            homework_reply = multilingual_service.get_phrase("homework_help", lang=lang)
-            return LLMResponse(content=homework_reply)
-
-        # Priority 3: Pending Escalation Confirmation ("yes", "confirm", "proceed", "submit")
+        # Priority 1: Pending Escalation Confirmation ("yes", "confirm", "proceed", "submit")
         pending_esc_id = ctx.get("pending_escalation_id")
         if pending_esc_id and any(w in msg_lower or w in last_user_msg for w in ["yes", "confirm", "proceed", "submit", "sure", "please do", "ok", "हाँ", "पुष्टि", "சரி", "হ্যাঁ"]):
             if "confirm_escalation" in tool_names:
@@ -262,14 +240,16 @@ class LLMClient:
                     "arguments": {"escalation_id": pending_esc_id}
                 }])
 
-        # Priority 4: Explicit Human Escalation Request
-        escalate_keywords = [
-            "talk to teacher", "speak with teacher", "call teacher", "contact teacher", "connect with teacher",
-            "contact principal", "speak to principal", "talk to management", "file a complaint",
-            "schedule meeting with teacher", "human assistance", "speak with human",
-            "टीचर से बात", "शिक्षक से संपर्क", "ஆசிரியரிடம் பேச", "শিক্ষকের সাথে কথা"
-        ]
-        if any(k in msg_lower or k in last_user_msg for k in escalate_keywords):
+        # Priority 2: Human Escalation & Staff Contact Intent
+        # Matches: "connect with teacher", "connecting with my teacher", "talk to teacher", "speak to principal", etc.
+        esc_verbs = ["talk", "speak", "call", "contact", "connect", "connecting", "meet", "meeting", "reach", "complain", "complaint", "escalate", "escalation", "बात", "संपर्क", "मिलना", "பேச", "কথা"]
+        esc_targets = ["teacher", "principal", "management", "counselor", "staff", "human", "representative", "admin", "school", "शिक्षक", "टीचर", "प्रिंसिपल", "ஆசிரியர்", "শিক্ষক"]
+        
+        has_esc_verb = any(v in msg_lower or v in last_user_msg for v in esc_verbs)
+        has_esc_target = any(t in msg_lower or t in last_user_msg for t in esc_targets)
+        is_direct_escalate = any(k in msg_lower for k in ["talk to teacher", "speak with teacher", "call teacher", "contact teacher", "connect with teacher", "connect with my teacher", "help connecting with my teacher", "reach teacher", "speak to principal", "file a complaint"])
+
+        if (has_esc_verb and has_esc_target) or is_direct_escalate:
             if "create_escalation" in tool_names:
                 target = "management" if ("principal" in msg_lower or "management" in msg_lower or "प्रिंसिपल" in last_user_msg) else "teacher"
                 return LLMResponse(tool_calls=[{
@@ -280,6 +260,26 @@ class LLMClient:
                         "reason": last_user_msg
                     }
                 }])
+
+        # Priority 3: Dedicated Greetings & Social Pleasantries
+        greeting_words = [
+            "hello", "hi", "hey", "good morning", "good afternoon", "good evening",
+            "how are you", "how are you doing", "how do you do", "nice to meet you",
+            "नमस्ते", "प्रणाम", "नमस्कार", "வணக்கம்", "নমস্কার", "హలో", "ನಮಸ್ಕಾರ"
+        ]
+        has_greeting = any(w in msg_lower or w in last_user_msg for w in greeting_words)
+        has_data_query = any(k in msg_lower or k in last_user_msg for k in ["attendance", "percentage", "present", "absent", "mark", "report", "analytics", "उपस्थिति", "हाजिरी", "வருகை", "উপস্থিতি"])
+        
+        if has_greeting and not has_data_query:
+            role_key = f"greeting_{user.role}"
+            greeting_reply = multilingual_service.get_phrase(role_key, lang=lang, name=user.name)
+            return LLMResponse(content=greeting_reply)
+
+        # Priority 4: Academic & Homework Guidance (No false escalations)
+        homework_keywords = ["homework", "math problem", "study tip", "how to solve", "science question", "exam preparation", "subject help", "गृहकार्य", "सवाल", "படிக்க", "পড়াশোনা"]
+        if any(k in msg_lower or k in last_user_msg for k in homework_keywords) and not has_esc_target:
+            homework_reply = multilingual_service.get_phrase("homework_help", lang=lang)
+            return LLMResponse(content=homework_reply)
 
         # Priority 5: Attendance Analytics Inquiry (Principal / Teacher)
         analytics_keywords = ["analytics", "average attendance", "school attendance", "overall attendance", "statistics", "report for school", "বিশ্লেষণ", "பகுப்பாய்வு", "विश्लेषण"]

@@ -46,6 +46,40 @@ async def test_student_homework_question_does_not_falsely_escalate(db):
     assert "ticket" not in res["response"]
 
 @pytest.mark.asyncio
+async def test_connecting_with_teacher_triggers_escalation_ticket(db):
+    """Verify phrases like 'I need help connecting with my teacher...' trigger escalation creation."""
+    student = db.query(User).filter(User.id == "usr-stu-101").first()
+    
+    res = await conversation_engine.process_message(
+        user=student,
+        user_message="I need help connecting with my teacher regarding questions on my classes.",
+        channel="chat",
+        db=db
+    )
+    
+    assert len(res["tool_executions"]) == 1
+    assert res["tool_executions"][0]["tool"] == "create_escalation"
+    assert "ticket" in res["response"].lower()
+    assert "confirm" in res["response"].lower()
+
+@pytest.mark.asyncio
+async def test_i_want_to_connect_with_teacher_triggers_escalation(db):
+    """Verify 'I want to connect with my teacher.' triggers escalation creation."""
+    student = db.query(User).filter(User.id == "usr-stu-101").first()
+    
+    res = await conversation_engine.process_message(
+        user=student,
+        user_message="I want to connect with my teacher.",
+        channel="chat",
+        db=db
+    )
+    
+    assert len(res["tool_executions"]) == 1
+    assert res["tool_executions"][0]["tool"] == "create_escalation"
+    assert "ticket" in res["response"].lower()
+    assert "confirm" in res["response"].lower()
+
+@pytest.mark.asyncio
 async def test_teacher_mark_without_student_prompts_for_missing_info(db):
     """Verify Teacher saying 'mark attendance as absent for today' prompts for missing student rather than throwing raw error."""
     teacher = db.query(User).filter(User.id == "usr-teacher-10a").first()
