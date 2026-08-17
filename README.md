@@ -4,8 +4,8 @@
 [![Python](https://img.shields.io/badge/Python-3.11%2B%20%7C%203.13-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg)](https://fastapi.tiangolo.com)
 [![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0%2B-red.svg)](https://sqlalchemy.org)
-[![Tests](https://img.shields.io/badge/Tests-57%2F57%20Passing-brightgreen.svg)]()
-[![Security](https://img.shields.io/badge/RBAC-Server--Enforced-success.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-59%2F59%20Passing-brightgreen.svg)](#-automated-test-suite-59--59-passing)
+[![Security](https://img.shields.io/badge/RBAC-Server--Enforced-success.svg)](#-security--rbac-boundary-matrix)
 
 ---
 
@@ -156,7 +156,7 @@ All seeded accounts share the default password: **`School@123`**
 
 ---
 
-## 🧪 Automated Test Suite (57 / 57 Passing)
+## 🧪 Automated Test Suite (59 / 59 Passing)
 
 The test suite covers every layer of the architecture:
 
@@ -164,20 +164,20 @@ The test suite covers every layer of the architecture:
 ============================= test session starts =============================
 platform win32 -- Python 3.13.7, pytest-9.1.1
 rootdir: School-ERP-Ecosystem/05-xyz-ai-repository/xyz-ai/backend
-collected 57 items
+collected 59 items
 
-tests/integration/test_phase9_full_integration_gate.py ........... [ 12%] (7 Passed)
-tests/security-redteam/test_adversarial_suite.py ................. [ 38%] (15 Passed)
-tests/unit/test_natural_language_and_i18n_fixes.py ............... [ 47%] (5 Passed)
-tests/unit/test_phase1_data_model.py ............................. [ 54%] (4 Passed)
-tests/unit/test_phase2_auth_rbac.py .............................. [ 68%] (8 Passed)
+tests/integration/test_phase9_full_integration_gate.py ........... [ 11%] (7 Passed)
+tests/security-redteam/test_adversarial_suite.py ................. [ 37%] (15 Passed)
+tests/unit/test_natural_language_and_i18n_fixes.py ............... [ 49%] (7 Passed)
+tests/unit/test_phase1_data_model.py ............................. [ 55%] (4 Passed)
+tests/unit/test_phase2_auth_rbac.py .............................. [ 69%] (8 Passed)
 tests/unit/test_phase3_tool_layer.py ............................. [ 77%] (5 Passed)
-tests/unit/test_phase4_conversation_engine.py .................... [ 85%] (5 Passed)
+tests/unit/test_phase4_conversation_engine.py .................... [ 86%] (5 Passed)
 tests/unit/test_phase6_escalation.py ............................. [ 91%] (3 Passed)
 tests/unit/test_phase7_i18n.py ................................... [ 96%] (3 Passed)
 tests/unit/test_phase8_voice.py .................................. [100%] (2 Passed)
 
-============================= 57 passed in 17.92s =============================
+============================= 59 passed in 17.61s =============================
 ```
 
 ### Red-Team Adversarial Test Coverage (15 Attack Scenarios Blocked):
@@ -254,6 +254,7 @@ The application will be accessible at `http://localhost:8000`.
    - Type *"Hello, how are you today?"* $\rightarrow$ receives a warm, polite student greeting without dumping attendance.
    - Type *"What is my attendance percentage?"* $\rightarrow$ invokes `get_attendance` and reports `96.7%` attendance.
    - Type *"Can you help me with my math homework?"* $\rightarrow$ receives constructive study strategies without false escalation.
+   - Type *"I need help connecting with my teacher"* $\rightarrow$ creates ticket and prompts for confirmation.
 2. **Parent Multi-Child Disambiguation**:
    - Switch role to **Rajesh Sharma** (`rajesh.parent@xyzschool.edu`).
    - Type *"How is my child doing with attendance?"* $\rightarrow$ Assistant recognizes 2 linked children and asks whether to check for **Aarav Sharma** (10-A) or **Ananya Sharma** (8-A).
