@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  xyz-ai-app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: xyz_school_ai
+    ports:
+      - "8000:8000"
+    environment:
+      - JWT_SECRET_KEY=xyz-school-ai-production-super-secret-key-2026-secure-jwt-signing
+      - DATABASE_URL=sqlite:///./school_erp.db
+      - RATE_LIMIT_RPM=60
+      - ENVIRONMENT=production
+    volumes:
+      - school_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  school_data:

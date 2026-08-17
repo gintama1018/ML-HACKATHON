@@ -1,0 +1,386 @@
+================================================================================
+XYZ AI — HUMAN-LIKE SCHOOL ASSISTANT
+SENIOR-LEVEL EXECUTION PLAN (BACKEND-FIRST, PRODUCTION-READY)
+================================================================================
+
+READ THIS FIRST — HONEST SCOPING NOTE
+--------------------------------------------------------------------------------
+The assessment asks for: chat + voice + AI avatar + 4 personas + 11 languages +
+mock-API tool calling + escalation + full security hardening — as a launch-ready
+product. Being straight about this: avatar realism (lip-sync, facial expression)
+and 11-language voice quality are the two items most likely to eat your entire
+timeline for the least evaluation payoff, because assessors almost always weigh
+CORE INTELLIGENCE + SECURITY + REAL BACKEND FUNCTIONING far higher than avatar
+polish. So the sequencing below is deliberate:
+
+  1. Backend + AI brain must be 100% real, not mocked-and-forgotten. "Mock API"
+     means the DATA source is mocked (fake school DB), not that the LOGIC is
+     mocked. Permission checks, intent routing, context memory, escalation
+     confirmation — all of that must be REAL, working code, not hardcoded
+     if/else demos.
+  2. Voice + Avatar are built as a real but LEAN layer on top, using existing
+     services (not building STT/TTS/avatar rendering from scratch — no serious
+     team does that in a school-assistant timeline).
+  3. Language support: build the pipeline to support all 11 properly, but only
+     deep-test 3–4 (English, Hindi, + 2 more) end-to-end before submission. The
+     pipeline being genuinely multi-lingual (not hardcoded per-language) matters
+     more than 11/11 being perfectly polished.
+
+If timeline is tight, cut avatar polish and language count before you cut
+security or backend correctness. A working, secure, context-aware chat system
+in 2 languages beats a flashy broken avatar in 11.
+
+
+================================================================================
+PART 0 — ARCHITECTURE OVERVIEW
+================================================================================
+
+                     ┌─────────────────────────────────────┐
+                     │   Client Layer (Phase 2)             │
+                     │  Chat UI | Voice UI | Avatar UI       │
+                     └──────────────────┬────────────────────┘
+                                        │ HTTPS/WSS
+                     ┌──────────────────▼────────────────────┐
+                     │   API Gateway / BFF                    │
+                     │  - Auth (JWT)                          │
+                     │  - Rate limiting                       │
+                     │  - Request logging                     │
+                     └──────────────────┬────────────────────┘
+                                        │
+        ┌───────────────────────────────┼───────────────────────────────┐
+        │                               │                               │
+┌───────▼────────┐          ┌───────────▼───────────┐        ┌──────────▼─────────┐
+│  Auth & RBAC     │        │   Conversation Engine   │        │  Escalation Service │
+│  Service         │        │  - Session/context store│        │  - Ticket creation   │
+│  - Role verify   │        │  - Intent detection      │       │  - Status tracking   │
+│  - Permission map │       │  - Persona selection      │      │  - Confirmation gate │
+└───────┬────────┘          │  - Tool/function calling  │      └──────────┬─────────┘
+        │                    │  - LLM orchestration      │                 │
+        │                    └───────────┬───────────────┘                 │
+        │                               │                                 │
+        │                    ┌───────────▼───────────────┐                 │
+        │                    │   Tool/Function Layer      │                 │
+        │                    │  (Application-layer auth   │                 │
+        │                    │   happens HERE, not in LLM)│◄────────────────┘
+        │                    └───────────┬───────────────┘
+        │                               │
+        └───────────────┬────────────────┘
+                        │
+             ┌───────────▼────────────┐
+             │  Mock School API Layer   │
+             │  - Attendance service    │
+             │  - Student/Parent/Teacher│
+             │    directory service     │
+             │  - Notification service  │
+             │  (Adapter pattern — swap │
+             │   for real ERP later)    │
+             └───────────┬────────────┘
+                        │
+             ┌───────────▼────────────┐
+             │  PostgreSQL + Redis      │
+             │  Postgres: system of     │
+             │  record. Redis: session/ │
+             │  conversation cache      │
+             └─────────────────────────┘
+
+Cross-cutting layers (touch everything above): Audit Logging, Multi-language
+Translation Layer, Voice (STT/TTS) Layer, Monitoring/Observability.
+
+
+================================================================================
+PART 1 — RECOMMENDED TECH STACK
+================================================================================
+
+Backend:        Node.js (NestJS) OR Python (FastAPI) — pick one, don't mix.
+                 FastAPI recommended if your AI/NLU logic is Python-heavy.
+Database:        PostgreSQL (system of record — users, roles, attendance,
+                 escalation tickets, audit logs)
+Cache/Session:   Redis (conversation context, rate limiting, short-term memory)
+LLM Layer:       Claude or GPT via API, using native TOOL/FUNCTION CALLING
+                 (not manual regex intent parsing — this is the "real"
+                 mechanism assessors will look for)
+Auth:            JWT + refresh tokens, role claims signed server-side only
+                 (never trust a role claim sent from client/LLM)
+STT:             Provider API (e.g. Whisper API / Google STT) — don't build own
+TTS:             Provider API (e.g. ElevenLabs / Google TTS / Azure Speech)
+                 — needs to support your target Indian languages
+Avatar:          Pick ONE realistic path:
+                   (a) D-ID / HeyGen style API for lip-synced video avatar, or
+                   (b) A simpler 2D/3D animated avatar (Ready Player Me +
+                       viseme-based lip sync) if budget/time constrained
+                 Do NOT attempt custom facial animation from scratch.
+Translation:     LLM-native multilingual response generation is preferred over
+                 a separate translation API — ask the LLM to respond directly
+                 in the target language with locale-aware persona tone.
+Frontend:        React (or React Native if a mobile app is also expected)
+Infra:           Docker Compose for local/dev; deploy on Render/Railway/AWS ECS
+                 for a real, publicly reachable submission link
+CI/CD:           GitHub Actions — lint, test, build on every push
+Observability:   Structured logging (pino/loguru) + a simple dashboard
+                 (even a logs table + admin view counts as "real" for this
+                 scope — full Grafana stack is optional polish)
+
+
+================================================================================
+PART 2 — PHASE-BY-PHASE PLAN (BACKEND FIRST)
+================================================================================
+
+--------------------------------------------------------------------------------
+PHASE 1 — DATA MODEL & FOUNDATION (Days 1–3)
+--------------------------------------------------------------------------------
+Goal: A real, queryable database — not JSON files pretending to be a database.
+
+Tables (minimum viable schema):
+  - users (id, name, role[student|parent|teacher|principal], phone, language_pref)
+  - students (id, user_id, class, section, roll_no)
+  - parent_student_link (parent_id, student_id)  ← critical for permission checks
+  - teacher_class_link (teacher_id, class, section) ← teacher can only act on
+    their own class, not the whole school
+  - attendance (id, student_id, date, status, marked_by, marked_at)
+  - conversations (id, user_id, started_at, channel[chat|voice])
+  - messages (id, conversation_id, sender[user|ai], content, intent, timestamp)
+  - escalations (id, user_id, target[teacher|management], reason, status,
+    confirmed_at, resolved_at)
+  - audit_logs (id, user_id, action, resource, result[allowed|denied], timestamp)
+
+Deliverable: Seed script with realistic fake data (20+ students, 5 teachers,
+parents linked correctly, a principal, some attendance history). This seed
+data is your "mock API" data source.
+
+--------------------------------------------------------------------------------
+PHASE 2 — AUTH & ROLE-BASED ACCESS CONTROL (Days 3–5)
+--------------------------------------------------------------------------------
+Goal: Nobody — including the LLM — can act outside their role. This is the
+single most heavily evaluated section given the assessment's security list.
+
+  - JWT issued at login, role embedded server-side, signed.
+  - Every tool/function call goes through a PERMISSION MIDDLEWARE that checks:
+      "Does user_id + role have rights to this action on this resource?"
+    This check happens in application code, never inferred from the LLM's
+    output or from what the user *claims* to be.
+  - Explicit rule table, example:
+      student  → can VIEW own attendance only
+      parent   → can VIEW linked children's attendance only
+      teacher  → can MARK/VIEW attendance for their own class only
+      principal→ can VIEW aggregate analytics, no individual student edits
+  - Fake role claim test: if a "student" JWT sends a request shaped like a
+    teacher action (e.g. "mark Rahul absent"), the permission layer must
+    reject it BEFORE it reaches the LLM/tool layer — write an automated test
+    for this specific case, it's an obvious eval point.
+
+--------------------------------------------------------------------------------
+PHASE 3 — MOCK API / TOOL LAYER (Days 5–7)
+--------------------------------------------------------------------------------
+Goal: Real endpoints the AI calls as "tools" — built as an adapter so a real
+school ERP could be plugged in later without touching the AI layer.
+
+  Tools to implement as callable functions:
+    - get_attendance(student_id, date_range)
+    - mark_attendance(student_id, date, status)  [teacher-only, class-scoped]
+    - get_attendance_analytics(scope)            [principal-only]
+    - get_student_profile(student_id)
+    - create_escalation(user_id, target, reason)
+    - confirm_escalation(escalation_id)
+    - get_escalation_status(escalation_id)
+
+  Each tool function independently re-validates permission (defense in depth
+  — don't rely only on the middleware from Phase 2).
+
+--------------------------------------------------------------------------------
+PHASE 4 — CONVERSATION ENGINE / AI BRAIN (Days 7–12)
+--------------------------------------------------------------------------------
+Goal: The actual "human-like assistant" behavior — this is the core deliverable.
+
+  - Use LLM native tool-calling: define the tools from Phase 3 as function
+    schemas, let the model decide which to call based on natural language.
+    This IS the intent detection — don't build a separate regex/keyword
+    intent classifier, it'll look amateur next to native tool calling.
+  - Session/context: store conversation history in Redis keyed by
+    conversation_id, pass last N turns back to the LLM each call so it
+    remembers prior context ("Would you like me to check his recent
+    attendance too?" → "yes" must resolve correctly).
+  - Persona system prompts — one per role, defining tone:
+      Student  → friendly, encouraging, simple language
+      Parent   → warm, patient, reassuring
+      Teacher  → professional, efficient, concise
+      Principal→ formal, data-oriented, analytical
+  - Missing-information handling: if a parent asks "how's attendance" but
+    has 2 linked children, the AI must ask which child — don't guess.
+  - Response must be generated by the model, not templated strings, so it
+    reads as natural language every time (matches "not robotic" requirement).
+
+--------------------------------------------------------------------------------
+PHASE 5 — SECURITY HARDENING (Days 10–14, runs parallel to Phase 4)
+--------------------------------------------------------------------------------
+This is explicitly graded in the assessment — treat it as a first-class phase,
+not an afterthought.
+
+  - Prompt injection defense:
+      * System prompt kept separate from user input at the API layer (use
+        the LLM provider's system/user role separation, never concatenate).
+      * Input sanitization layer that flags patterns like "ignore previous
+        instructions", "you are now...", "reveal your system prompt".
+      * Tool calls still go through Phase 2's permission middleware even if
+        the LLM is tricked into requesting something it shouldn't — this is
+        your real defense, not prompt wording.
+  - System-prompt/credential extraction defense:
+      * Never put API keys, DB credentials, or internal architecture details
+        in the system prompt.
+      * Add a response filter that blocks output resembling internal
+        instructions or secrets before it reaches the user.
+  - Unauthorized data access: covered by Phase 2/3, but add automated tests
+    specifically simulating cross-role and cross-user access attempts.
+  - Rate limiting per user_id to prevent abuse/enumeration.
+  - Full audit log of every tool call: who, what, when, allowed/denied —
+    queryable, so you can literally demo "here's the log proving a fake
+    teacher claim was blocked" in your submission video.
+  - Build a small internal "red-team test suite": 10–15 adversarial prompts
+    (role impersonation, injection, data leakage attempts) run automatically
+    in CI, pass/fail asserted. This single artifact will impress evaluators
+    more than almost anything else in the project.
+
+--------------------------------------------------------------------------------
+PHASE 6 — ESCALATION SYSTEM (Days 12–14)
+--------------------------------------------------------------------------------
+  - create_escalation() creates a ticket in `escalations` table, status=PENDING.
+  - AI must explicitly ask for confirmation before creating it ("Would you
+    like me to request a call now?").
+  - Only after user confirms does status move to CONFIRMED and a mock
+    notification is "sent" (log entry + fake webhook call is enough — but it
+    must be a real function execution, not the AI just claiming it happened).
+  - AI's response text is generated FROM the actual ticket status returned by
+    the tool call — never let the model assert "connected" unless the tool
+    result says so. This directly satisfies the assessment's explicit warning
+    about not claiming false confirmation.
+
+--------------------------------------------------------------------------------
+PHASE 7 — MULTI-LANGUAGE LAYER (Days 14–16)
+--------------------------------------------------------------------------------
+  - Store user's language_pref on the user record.
+  - Pass target language into the system prompt per-request; let the LLM
+    respond natively in that language (simpler and more natural than
+    translating a fixed English template).
+  - Deep-test: English, Hindi, and 2 more (pick based on what you can verify
+    quality on, e.g. Tamil, Bengali). Document in README that the pipeline
+    supports all 11 architecturally, with these 4 verified end-to-end.
+
+--------------------------------------------------------------------------------
+PHASE 8 — VOICE PIPELINE (Days 16–19)
+--------------------------------------------------------------------------------
+  Flow: Mic input → STT API → text into Conversation Engine (Phase 4, same
+  code path as chat — don't build a separate AI logic for voice) → response
+  text → TTS API → audio playback.
+  - Reuse the exact same backend endpoint for chat and voice-derived text —
+    this proves architectural soundness (one brain, multiple input modes).
+  - Handle STT low-confidence/noisy input by asking the user to repeat,
+    rather than guessing.
+
+--------------------------------------------------------------------------------
+PHASE 9 — BACKEND TESTING & HARDENING SIGN-OFF (Days 19–21)
+--------------------------------------------------------------------------------
+  - Unit tests: permission middleware, each tool function, escalation state
+    machine.
+  - Integration tests: full conversation flows for all 4 example use-cases
+    from the assessment (student attendance, parent attendance, teacher
+    marking, principal analytics).
+  - Security test suite from Phase 5 passing in CI.
+  - Load-check: basic concurrency test (10–20 simulated simultaneous
+    conversations) to confirm Redis session isolation actually works.
+  - ONLY once this phase is green do you move to frontend. This is the gate.
+
+
+================================================================================
+PART 3 — FRONTEND (AFTER BACKEND IS PROVEN) — Days 21–28
+================================================================================
+
+  1. Chat UI (highest priority)
+     - Role-aware login → correct persona greeting
+     - Message history, typing indicator, follow-up handling
+     - Escalation buttons ("Talk to Teacher" / "Contact School Management")
+       rendered as real UI actions tied to the confirm_escalation tool
+  2. Voice UI
+     - Mic button → waveform/recording state → same chat thread shows the
+       transcribed text + AI's spoken reply
+  3. Avatar UI
+     - Integrate chosen avatar service (Part 1 tech stack); wire to TTS output
+     - If time-constrained: ship a clean animated 2D avatar with basic
+       viseme lip-sync rather than an unfinished 3D avatar
+  4. Role-specific dashboards
+     - Student: attendance summary view
+     - Parent: linked children switcher
+     - Teacher: class roster + quick mark-attendance panel
+     - Principal: analytics charts (simple, real numbers from Postgres)
+
+
+================================================================================
+PART 4 — REPOSITORY STRUCTURE (per assessment requirement)
+================================================================================
+
+School-ERP-Ecosystem/
+├── 01-student-repository/student-portal/
+├── 02-parent-repository/parent-portal/
+├── 03-management-repository/management-portal/
+├── 04-staff-repository/staff-portal/
+└── 05-xyz-ai-repository/xyz-ai/
+    ├── backend/
+    │   ├── src/
+    │   │   ├── auth/
+    │   │   ├── conversation-engine/
+    │   │   ├── tools/
+    │   │   ├── escalation/
+    │   │   ├── voice/
+    │   │   ├── i18n/
+    │   │   └── audit/
+    │   ├── tests/
+    │   │   ├── unit/
+    │   │   ├── integration/
+    │   │   └── security-redteam/
+    │   └── seed/
+    ├── frontend/
+    │   └── src/
+    ├── README.md
+    └── docker-compose.yml
+
+(If the other four portals aren't part of your deliverable scope, keep them as
+stub folders with a note — reviewers will check the structure matches even if
+xyz-ai is your real focus.)
+
+
+================================================================================
+PART 5 — SUBMISSION CHECKLIST (mapped to assessment requirements)
+================================================================================
+  [ ] GitHub repo, structured per Part 4
+  [ ] Complete source code, backend fully functional (not stubbed logic)
+  [ ] README: setup steps, architecture diagram, security notes, known
+      limitations (be upfront about avatar/language scope decisions — shows
+      seniority, not weakness)
+  [ ] Working chat interface (deployed, publicly reachable link)
+  [ ] Short demo video covering: all 4 role use-cases, one escalation flow,
+      one blocked unauthorized-access attempt (this is a strong signal to
+      include — show the security actually working, don't just claim it)
+  [ ] CI passing (tests + security suite green)
+
+
+================================================================================
+PART 6 — SUGGESTED TIMELINE (≈4 weeks, adjust to your actual deadline)
+================================================================================
+  Week 1: Phases 1–3 (DB, Auth/RBAC, Mock API/Tool layer)
+  Week 2: Phase 4 (Conversation engine) + Phase 5 starts (security parallel)
+  Week 3: Phases 5–8 (security sign-off, escalation, language, voice)
+  Week 4: Phase 9 (test/harden gate) → Frontend (Part 3) → README + demo video
+
+
+================================================================================
+PART 7 — WHAT TO CUT FIRST IF TIME RUNS OUT (priority order, top = cut last)
+================================================================================
+  1. Security & RBAC correctness           — NEVER cut, this is core eval
+  2. Conversation engine / tool-calling      — NEVER cut, this is core eval
+  3. Escalation with real confirmation logic — keep, it's explicitly called out
+  4. Backend test suite                      — keep, at least the security tests
+  5. Multi-language (reduce to 2–3 languages instead of 11)
+  6. Voice pipeline (ship chat-only if truly forced to cut)
+  7. Avatar (ship a static/simple avatar or skip video avatar, keep TTS audio)
+
+================================================================================
+END OF PLAN
+================================================================================
