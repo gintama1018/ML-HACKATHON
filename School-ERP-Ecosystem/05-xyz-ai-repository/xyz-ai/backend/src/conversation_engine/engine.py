@@ -11,6 +11,7 @@ from src.tools.tool_registry import execute_tool, get_tools_schema_for_role
 from src.security.sanitizer import detect_prompt_injection, filter_sensitive_output
 from src.security.rate_limiter import rate_limiter
 from src.auth.rbac import log_audit_event
+from src.i18n.translator import multilingual_service
 
 class ConversationEngine:
     """Core AI Orchestrator: Multi-turn Memory, Intent Routing, Tool Execution, Disambiguation & Hardened Security."""
@@ -25,7 +26,9 @@ class ConversationEngine:
         client_ip: str = "127.0.0.1",
         db: Session = None
     ) -> Dict[str, Any]:
-        target_lang = language_pref or user.language_pref or "en"
+        # 0. Language resolution: Explicit request pref -> detected script -> fallback "en"
+        detected_lang = multilingual_service.detect_script_language(user_message)
+        target_lang = language_pref or detected_lang or "en"
         
         # 1. Rate Limiting Check
         is_limited, remaining = rate_limiter.is_rate_limited(user.id)
@@ -41,7 +44,7 @@ class ConversationEngine:
             )
             return {
                 "conversation_id": conversation_id or "rate-limited",
-                "response": "You have sent too many requests in a short period. Please wait a moment before trying again.",
+                "response": multilingual_service.get_phrase("rate_limited", lang=target_lang),
                 "role": user.role,
                 "channel": channel,
                 "language": target_lang,
@@ -63,10 +66,7 @@ class ConversationEngine:
                 ip_address=client_ip
             )
             conv = context_manager.get_or_create_conversation(user, conversation_id, channel, db)
-            refusal_text = (
-                "Security Notice: Your message contains prohibited instruction overrides or system alteration commands. "
-                "As XYZ AI Assistant, I operate strictly within designated school role boundaries."
-            )
+            refusal_text = multilingual_service.get_phrase("security_refusal", lang=target_lang)
             context_manager.append_message(conv.id, MessageSender.USER.value, user_message, db=db)
             context_manager.append_message(conv.id, MessageSender.AI.value, refusal_text, intent="security_refusal", db=db)
             
@@ -87,17 +87,35 @@ class ConversationEngine:
         # 4. Gather role-specific context metadata
         db_meta = self._gather_user_metadata(user, db)
         
-        # 5. Check for parent multi-child ambiguity
-        is_ambiguous, resolved_student_id, prompt = DisambiguationEngine.check_parent_child_ambiguity(
-            user, user_message, db
+        # 5. Disambiguation Check 1: Parent multi-child ambiguity
+        is_ambiguous, resolved_student_id, parent_prompt = DisambiguationEngine.check_parent_child_ambiguity(
+            user, user_message, target_lang, db
         )
         if is_ambiguous:
             context_manager.append_message(conv.id, MessageSender.USER.value, user_message, db=db)
-            context_manager.append_message(conv.id, MessageSender.AI.value, prompt, intent="disambiguate_child", db=db)
+            context_manager.append_message(conv.id, MessageSender.AI.value, parent_prompt, intent="disambiguate_child", db=db)
             
             return {
                 "conversation_id": conv.id,
-                "response": prompt,
+                "response": parent_prompt,
+                "role": user.role,
+                "channel": channel,
+                "language": target_lang,
+                "requires_disambiguation": True,
+                "tool_executions": []
+            }
+            
+        # 5b. Disambiguation Check 2: Teacher missing student parameter when marking
+        is_teacher_ambiguous, mark_status, teacher_prompt = DisambiguationEngine.check_teacher_marking_ambiguity(
+            user, user_message, target_lang, db
+        )
+        if is_teacher_ambiguous:
+            context_manager.append_message(conv.id, MessageSender.USER.value, user_message, db=db)
+            context_manager.append_message(conv.id, MessageSender.AI.value, teacher_prompt, intent="disambiguate_student", db=db)
+            
+            return {
+                "conversation_id": conv.id,
+                "response": teacher_prompt,
                 "role": user.role,
                 "channel": channel,
                 "language": target_lang,
@@ -136,7 +154,7 @@ class ConversationEngine:
         }
         
         # 9. First LLM Turn: Detect intent & decide if tool call is needed
-        first_resp = await llm_client.generate_response(messages_payload, tools, user, session_ctx)
+        first_resp = await llm_client.generate_response(messages_payload, tools, user, session_ctx, language=target_lang)
         
         tool_executions = []
         final_content = first_resp.content
@@ -195,7 +213,7 @@ class ConversationEngine:
             for tm in tool_msgs_for_llm:
                 messages_payload.append(tm)
                 
-            second_resp = await llm_client.generate_response(messages_payload, tools, user, session_ctx)
+            second_resp = await llm_client.generate_response(messages_payload, tools, user, session_ctx, language=target_lang)
             final_content = second_resp.content or "Your request has been processed."
             
         final_content = filter_sensitive_output(final_content or "")
@@ -236,5 +254,10 @@ class ConversationEngine:
                 for c in classes
             ]
         return meta
+
+    def clear_session_memory(self, conversation_id: str):
+        """Reset in-memory state for a conversation."""
+        context_manager.clear_session_data(conversation_id, "target_student_id")
+        context_manager.clear_session_data(conversation_id, "pending_escalation_id")
 
 conversation_engine = ConversationEngine()

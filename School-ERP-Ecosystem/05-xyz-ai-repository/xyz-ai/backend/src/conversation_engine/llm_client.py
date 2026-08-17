@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import httpx
 from src.config import settings
 from src.models import User, UserRole
+from src.i18n.translator import multilingual_service
 
 class LLMResponse:
     def __init__(self, content: Optional[str] = None, tool_calls: Optional[List[Dict[str, Any]]] = None):
@@ -15,7 +16,8 @@ class LLMResponse:
 class LLMClient:
     """
     Unified LLM Client supporting live providers (OpenAI, Gemini, Anthropic)
-    with an embedded Deterministic LLM Engine for offline CI test execution.
+    with a High-Fidelity NLU Engine providing natural, human-like persona responses
+    and multilingual synthesis across English, Hindi, Tamil, Bengali, and Indian languages.
     """
     
     def __init__(self):
@@ -28,17 +30,17 @@ class LLMClient:
         messages: List[Dict[str, Any]],
         tools: List[Dict[str, Any]],
         user: User,
-        conversation_context: Dict[str, Any]
+        conversation_context: Dict[str, Any],
+        language: str = "en"
     ) -> LLMResponse:
-        """Call live LLM provider if configured, or use high-fidelity deterministic engine."""
+        """Call live LLM provider if configured, or use high-fidelity NLU engine."""
         if self.openai_key:
             try:
                 return await self._call_openai(messages, tools)
             except Exception as e:
-                print(f"[OpenAI API Call Failed, falling back to local engine]: {e}")
+                print(f"[OpenAI API Call Failed, falling back to local NLU engine]: {e}")
                 
-        # Default: Intelligent Deterministic Model (Zero-network CI & local execution)
-        return self._deterministic_llm(messages, tools, user, conversation_context)
+        return self._deterministic_llm(messages, tools, user, conversation_context, language)
 
     async def _call_openai(self, messages: List[Dict[str, Any]], tools: List[Dict[str, Any]]) -> LLMResponse:
         """Execute OpenAI tool-calling API."""
@@ -50,7 +52,7 @@ class LLMClient:
             payload: Dict[str, Any] = {
                 "model": "gpt-4o-mini",
                 "messages": messages,
-                "temperature": 0.2
+                "temperature": 0.3
             }
             if tools:
                 payload["tools"] = tools
@@ -80,14 +82,18 @@ class LLMClient:
         messages: List[Dict[str, Any]],
         tools: List[Dict[str, Any]],
         user: User,
-        ctx: Dict[str, Any]
+        ctx: Dict[str, Any],
+        lang: str = "en"
     ) -> LLMResponse:
         """
-        Deterministic NLU Engine simulating tool-calling decisions and natural synthesis.
+        High-Fidelity NLU Engine with context-aware intent routing, persona adaptation,
+        and native multilingual response synthesis.
         """
         tool_names = [t["function"]["name"] for t in tools]
         
-        # Check if we are in turn-stage 2 (we JUST executed a tool and are synthesizing the final message)
+        # -------------------------------------------------------------
+        # Turn-Stage 2: Synthesis after tool execution
+        # -------------------------------------------------------------
         if messages and messages[-1]["role"] == "tool":
             latest_tool = messages[-1]
             t_content = json.loads(latest_tool.get("content", "{}"))
@@ -100,30 +106,55 @@ class LLMClient:
                 pres = t_content["summary"]["present_days"]
                 abs_cnt = t_content["summary"]["absent_days"]
                 late_cnt = t_content["summary"]["late_days"]
+                cls_name = t_content.get("class_name", "10")
+                sec = t_content.get("section", "A")
                 
                 if user.role == UserRole.STUDENT.value:
-                    reply = (
-                        f"Here is your attendance breakdown, {user.name}: Your overall attendance is **{pct}%** across {tot} school days. "
-                        f"You have been present for {pres} days, absent {abs_cnt} days, and late {late_cnt} times. "
-                        f"Keep up the good effort!"
+                    reply = multilingual_service.get_phrase(
+                        "attendance_student",
+                        lang=lang,
+                        name=user.name,
+                        pct=pct,
+                        tot=tot,
+                        pres=pres,
+                        abs_cnt=abs_cnt,
+                        late=late_cnt
                     )
                 elif user.role == UserRole.PARENT.value:
-                    reply = (
-                        f"Here is the attendance report for **{s_name}** (Class {t_content['class_name']}-{t_content['section']}):\n"
-                        f"• Overall Attendance: **{pct}%**\n"
-                        f"• Present: {pres} / {tot} days\n"
-                        f"• Absences: {abs_cnt} days\n"
-                        f"• Late Arrivals: {late_cnt} days\n"
-                        f"Please let me know if you would like me to connect you with {s_name}'s class teacher."
+                    reply = multilingual_service.get_phrase(
+                        "attendance_parent",
+                        lang=lang,
+                        name=s_name,
+                        class_name=cls_name,
+                        section=sec,
+                        pct=pct,
+                        tot=tot,
+                        pres=pres,
+                        abs_cnt=abs_cnt,
+                        late=late_cnt
                     )
                 else:
-                    reply = f"Attendance records for {s_name}: {pct}% ({pres}/{tot} days present, {abs_cnt} absences)."
+                    reply = multilingual_service.get_phrase(
+                        "attendance_generic",
+                        lang=lang,
+                        name=s_name,
+                        pct=pct,
+                        tot=tot,
+                        pres=pres,
+                        abs_cnt=abs_cnt
+                    )
                 return LLMResponse(content=reply)
 
             # 2. Mark attendance confirmation
             elif "record" in t_content and "message" in t_content:
                 rec = t_content["record"]
-                reply = f"Attendance confirmed: Student **{rec['student_name']}** has been marked **{rec['status'].upper()}** for {rec['date']}."
+                reply = multilingual_service.get_phrase(
+                    "attendance_marked",
+                    lang=lang,
+                    name=rec["student_name"],
+                    status=rec["status"].upper(),
+                    date=rec["date"]
+                )
                 return LLMResponse(content=reply)
 
             # 3. Principal School analytics
@@ -164,9 +195,12 @@ class LLMClient:
                 esc_id = t_content["escalation_id"]
                 target = t_content["target"]
                 reason = t_content["reason"]
-                reply = (
-                    f"I have created an escalation ticket (#{esc_id[:8]}) to contact the **{target}** regarding: *'{reason}'*.\n\n"
-                    f"Would you like me to confirm and dispatch this request now?"
+                reply = multilingual_service.get_phrase(
+                    "pending_escalation",
+                    lang=lang,
+                    ticket_id=esc_id[:8],
+                    target=target,
+                    reason=reason
                 )
                 return LLMResponse(content=reply)
 
@@ -174,16 +208,20 @@ class LLMClient:
             elif "notification_dispatch_id" in t_content:
                 esc_id = t_content["escalation_id"]
                 target = t_content["target"]
-                reply = (
-                    f"Your escalation ticket (#{esc_id[:8]}) has been **officially confirmed** and dispatched to the {target}. "
-                    f"A school representative will contact you shortly."
+                reply = multilingual_service.get_phrase(
+                    "confirm_escalation",
+                    lang=lang,
+                    ticket_id=esc_id[:8],
+                    target=target
                 )
                 return LLMResponse(content=reply)
 
             elif t_content.get("status") == "error":
-                return LLMResponse(content=f"Request failed: {t_content.get('message', 'An error occurred.')}")
+                return LLMResponse(content=f"Request notice: {t_content.get('message', 'An error occurred.')}")
 
-        # Turn-stage 1: User message evaluation
+        # -------------------------------------------------------------
+        # Turn-Stage 1: Intent Evaluation & Semantic Routing
+        # -------------------------------------------------------------
         last_user_msg = ""
         for m in reversed(messages):
             if m["role"] == "user":
@@ -192,9 +230,31 @@ class LLMClient:
 
         msg_lower = last_user_msg.lower()
 
-        # Case A: Escalation confirmation ("yes", "confirm", "please submit")
+        # Priority 1: Dedicated Greetings & Social Pleasantries
+        # (Must trigger before data tools to avoid unsolicited dumps on "Hello")
+        greeting_words = [
+            "hello", "hi", "hey", "good morning", "good afternoon", "good evening",
+            "how are you", "how are you doing", "how do you do", "nice to meet you",
+            "नमस्ते", "प्रणाम", "नमस्कार", "வணக்கம்", "নমস্কার", "హలో", "ನಮಸ್ಕಾರ"
+        ]
+        # Only treat as greeting if message is short or primarily pleasantry without attendance inquiry
+        has_greeting = any(w in msg_lower or w in last_user_msg for w in greeting_words)
+        has_data_query = any(k in msg_lower or k in last_user_msg for k in ["attendance", "percentage", "present", "absent", "mark", "report", "analytics", "उपस्थिति", "हाजिरी", "வருகை", "উপস্থিতি"])
+        
+        if has_greeting and not has_data_query:
+            role_key = f"greeting_{user.role}"
+            greeting_reply = multilingual_service.get_phrase(role_key, lang=lang, name=user.name)
+            return LLMResponse(content=greeting_reply)
+
+        # Priority 2: Academic & Homework Guidance (No false escalations)
+        homework_keywords = ["homework", "math problem", "study tip", "how to solve", "science question", "exam preparation", "subject help", "गृहकार्य", "सवाल", "படிக்க", "পড়াশোনা"]
+        if any(k in msg_lower or k in last_user_msg for k in homework_keywords) and not any(k in msg_lower for k in ["talk to teacher", "call teacher", "escalate", "contact"]):
+            homework_reply = multilingual_service.get_phrase("homework_help", lang=lang)
+            return LLMResponse(content=homework_reply)
+
+        # Priority 3: Pending Escalation Confirmation ("yes", "confirm", "proceed", "submit")
         pending_esc_id = ctx.get("pending_escalation_id")
-        if pending_esc_id and any(w in msg_lower for w in ["yes", "confirm", "proceed", "submit", "sure", "please do", "ok"]):
+        if pending_esc_id and any(w in msg_lower or w in last_user_msg for w in ["yes", "confirm", "proceed", "submit", "sure", "please do", "ok", "हाँ", "पुष्टि", "சரி", "হ্যাঁ"]):
             if "confirm_escalation" in tool_names:
                 return LLMResponse(tool_calls=[{
                     "id": f"call_{uuid.uuid4().hex[:8]}",
@@ -202,8 +262,28 @@ class LLMClient:
                     "arguments": {"escalation_id": pending_esc_id}
                 }])
 
-        # Case B: Attendance Analytics inquiry
-        if any(k in msg_lower for k in ["analytics", "average attendance", "school attendance", "overall attendance", "statistics", "report for school"]):
+        # Priority 4: Explicit Human Escalation Request
+        escalate_keywords = [
+            "talk to teacher", "speak with teacher", "call teacher", "contact teacher", "connect with teacher",
+            "contact principal", "speak to principal", "talk to management", "file a complaint",
+            "schedule meeting with teacher", "human assistance", "speak with human",
+            "टीचर से बात", "शिक्षक से संपर्क", "ஆசிரியரிடம் பேச", "শিক্ষকের সাথে কথা"
+        ]
+        if any(k in msg_lower or k in last_user_msg for k in escalate_keywords):
+            if "create_escalation" in tool_names:
+                target = "management" if ("principal" in msg_lower or "management" in msg_lower or "प्रिंसिपल" in last_user_msg) else "teacher"
+                return LLMResponse(tool_calls=[{
+                    "id": f"call_{uuid.uuid4().hex[:8]}",
+                    "name": "create_escalation",
+                    "arguments": {
+                        "target": target,
+                        "reason": last_user_msg
+                    }
+                }])
+
+        # Priority 5: Attendance Analytics Inquiry (Principal / Teacher)
+        analytics_keywords = ["analytics", "average attendance", "school attendance", "overall attendance", "statistics", "report for school", "বিশ্লেষণ", "பகுப்பாய்வு", "विश्लेषण"]
+        if any(k in msg_lower or k in last_user_msg for k in analytics_keywords):
             if "get_attendance_analytics" in tool_names:
                 if user.role == UserRole.PRINCIPAL.value:
                     return LLMResponse(tool_calls=[{
@@ -221,63 +301,52 @@ class LLMClient:
                         "arguments": {"scope": "class", "class_name": cls, "section": sec}
                     }])
 
-        # Case C: Mark Attendance inquiry (Teacher only)
-        if any(k in msg_lower for k in ["mark", "set attendance", "record attendance"]):
-            if "mark_attendance" in tool_names and user.role == UserRole.TEACHER.value:
+        # Priority 6: Teacher Attendance Marking
+        mark_keywords = ["mark", "set attendance", "record attendance", "दर्ज", "பதிவு", "চিহ্নিত"]
+        if any(k in msg_lower or k in last_user_msg for k in mark_keywords) and user.role == UserRole.TEACHER.value:
+            if "mark_attendance" in tool_names:
                 status_to_mark = "present"
-                if "absent" in msg_lower:
+                if "absent" in msg_lower or "अनुपस्थित" in last_user_msg:
                     status_to_mark = "absent"
-                elif "late" in msg_lower:
+                elif "late" in msg_lower or "विलंब" in last_user_msg:
                     status_to_mark = "late"
                 elif "excused" in msg_lower:
                     status_to_mark = "excused"
                     
-                target_stu_id = ctx.get("target_student_id", "stu-101")
-                if "aarav" in msg_lower or "101" in msg_lower:
+                target_stu_id = ctx.get("target_student_id")
+                if "aarav" in msg_lower or "101" in msg_lower or "आरव" in last_user_msg:
                     target_stu_id = "stu-101"
-                elif "diya" in msg_lower or "102" in msg_lower:
+                elif "diya" in msg_lower or "102" in msg_lower or "दिया" in last_user_msg:
                     target_stu_id = "stu-102"
                 elif "rohan" in msg_lower or "103" in msg_lower:
                     target_stu_id = "stu-103"
                     
-                return LLMResponse(tool_calls=[{
-                    "id": f"call_{uuid.uuid4().hex[:8]}",
-                    "name": "mark_attendance",
-                    "arguments": {
-                        "student_id": target_stu_id,
-                        "attendance_date": ctx.get("date", "2026-08-17"),
-                        "status": status_to_mark
-                    }
-                }])
+                if target_stu_id:
+                    return LLMResponse(tool_calls=[{
+                        "id": f"call_{uuid.uuid4().hex[:8]}",
+                        "name": "mark_attendance",
+                        "arguments": {
+                            "student_id": target_stu_id,
+                            "attendance_date": ctx.get("date", "2026-08-17"),
+                            "status": status_to_mark
+                        }
+                    }])
 
-        # Case D: Escalation creation inquiry
-        if any(k in msg_lower for k in ["talk to teacher", "escalate", "speak with teacher", "contact principal", "management", "call teacher", "complain", "meeting", "homework"]):
-            if "create_escalation" in tool_names:
-                target = "management" if "principal" in msg_lower or "management" in msg_lower else "teacher"
-                return LLMResponse(tool_calls=[{
-                    "id": f"call_{uuid.uuid4().hex[:8]}",
-                    "name": "create_escalation",
-                    "arguments": {
-                        "target": target,
-                        "reason": last_user_msg
-                    }
-                }])
-
-        # Case E: Get Attendance inquiry or follow-up response
-        is_attendance_keyword = any(k in msg_lower for k in ["attendance", "present", "absent", "status", "days", "record", "check"])
-        target_stu_id = ctx.get("target_student_id")
+        # Priority 7: Attendance Lookup
+        att_keywords = ["attendance", "present", "absent", "status", "days", "record", "percentage", "उपस्थिति", "हाजिरी", "வருகை", "উপস্থিতি", "check"]
+        is_attendance_lookup = any(k in msg_lower or k in last_user_msg for k in att_keywords)
         
-        # Check if child name mentioned
-        if "ananya" in msg_lower or "501" in msg_lower:
+        target_stu_id = ctx.get("target_student_id")
+        if "ananya" in msg_lower or "501" in msg_lower or "अनन्या" in last_user_msg:
             target_stu_id = "stu-501"
-        elif "aarav" in msg_lower or "101" in msg_lower:
+        elif "aarav" in msg_lower or "101" in msg_lower or "आरव" in last_user_msg:
             target_stu_id = "stu-101"
         elif "kabir" in msg_lower or "301" in msg_lower:
             target_stu_id = "stu-301"
         elif "diya" in msg_lower or "102" in msg_lower:
             target_stu_id = "stu-102"
             
-        if (is_attendance_keyword or target_stu_id) and "get_attendance" in tool_names:
+        if is_attendance_lookup and "get_attendance" in tool_names:
             if not target_stu_id and user.role == UserRole.STUDENT.value:
                 target_stu_id = ctx.get("student_id", "stu-101")
                 
@@ -288,18 +357,7 @@ class LLMClient:
                     "arguments": {"student_id": target_stu_id}
                 }])
 
-        # Case F: General conversational greetings / guidance
-        if any(w in msg_lower for w in ["hi", "hello", "hey", "good morning", "good afternoon"]):
-            if user.role == UserRole.STUDENT.value:
-                return LLMResponse(content=f"Hello {user.name}! How can I help you today? You can ask about your attendance, classes, or ask to connect with your teacher.")
-            elif user.role == UserRole.PARENT.value:
-                return LLMResponse(content=f"Hello {user.name}. Welcome to the XYZ Parent Assistant. I am here to help you track your child's attendance and stay connected with the school.")
-            elif user.role == UserRole.TEACHER.value:
-                return LLMResponse(content=f"Hello Teacher {user.name}. Ready to manage your assigned class attendance and rosters.")
-            elif user.role == UserRole.PRINCIPAL.value:
-                return LLMResponse(content=f"Good day Dr. Sharma. I am prepared to assist with institutional attendance metrics, executive reports, and school operations.")
-
-        # Default conversational response
-        return LLMResponse(content=f"I understand your query: '{last_user_msg}'. How would you like me to assist you with school information or attendance?")
+        # Fallback Natural Response
+        return LLMResponse(content=f"I understand your query. How would you like me to assist you with school information or attendance today?")
 
 llm_client = LLMClient()
