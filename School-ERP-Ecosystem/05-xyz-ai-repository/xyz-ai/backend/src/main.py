@@ -1,6 +1,6 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -17,16 +17,21 @@ from src.api.router_portal import router as portal_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize schema & ensure seed data is present
-    init_db()
-    db = SessionLocal()
+    # Initialize schema & ensure seed data is present gracefully
     try:
-        user_count = db.query(User).count()
-        if user_count == 0:
-            print("[INFO] Database empty. Running initial seed data...")
-            seed_database()
-    finally:
-        db.close()
+        init_db()
+        db = SessionLocal()
+        try:
+            user_count = db.query(User).count()
+            if user_count == 0:
+                print("[INFO] Database empty. Running initial seed data...")
+                seed_database()
+        except Exception as e:
+            print(f"[WARNING] Database check during startup: {e}")
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"[WARNING] Lifespan initialization error: {e}")
     yield
 
 app = FastAPI(
@@ -65,10 +70,28 @@ def health_check():
         "nlu_mode": settings.nlu_mode
     }
 
-# Mount Frontend Static Assets
-frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
-if os.path.exists(frontend_dir):
-    app.mount("/src", StaticFiles(directory=os.path.join(frontend_dir, "src")), name="frontend-src")
+@app.get("/favicon.ico", include_in_schema=False)
+@app.get("/favicon.png", include_in_schema=False)
+def favicon():
+    return Response(status_code=204)
+
+# Locate Frontend Static Directory (works in local dev and Vercel serverless)
+possible_frontend_paths = [
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend")),
+    os.path.abspath(os.path.join(os.getcwd(), "School-ERP-Ecosystem", "05-xyz-ai-repository", "xyz-ai", "frontend")),
+    os.path.abspath(os.path.join(os.getcwd(), "frontend")),
+]
+
+frontend_dir = None
+for p in possible_frontend_paths:
+    if os.path.exists(p) and os.path.exists(os.path.join(p, "index.html")):
+        frontend_dir = p
+        break
+
+if frontend_dir:
+    src_dir = os.path.join(frontend_dir, "src")
+    if os.path.exists(src_dir):
+        app.mount("/src", StaticFiles(directory=src_dir), name="frontend-src")
     
     @app.get("/")
     def serve_frontend_index():

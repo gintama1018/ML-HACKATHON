@@ -1,12 +1,16 @@
 import os
 import sys
 
-# Add backend directory to Python path
+# Locate backend directory in local and Vercel environments
 current_dir = os.path.dirname(os.path.abspath(__file__))
-backend_dir = os.path.abspath(os.path.join(current_dir, "..", "School-ERP-Ecosystem", "05-xyz-ai-repository", "xyz-ai", "backend"))
+possible_backend_paths = [
+    os.path.abspath(os.path.join(current_dir, "..", "School-ERP-Ecosystem", "05-xyz-ai-repository", "xyz-ai", "backend")),
+    os.path.abspath(os.path.join(current_dir, "School-ERP-Ecosystem", "05-xyz-ai-repository", "xyz-ai", "backend")),
+    os.path.abspath(os.path.join(os.getcwd(), "School-ERP-Ecosystem", "05-xyz-ai-repository", "xyz-ai", "backend")),
+]
 
-if backend_dir not in sys.path:
-    sys.path.insert(0, backend_dir)
+for p in possible_backend_paths:
+    if os.path.exists(p) and p not in sys.path:
+        sys.path.insert(0, p)
 
-# Import the FastAPI application instance
 from src.main import app
