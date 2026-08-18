@@ -163,8 +163,13 @@ class SchoolApp {
         const otpField = document.getElementById('regOtpField');
         if (otpField) otpField.classList.remove('hidden');
         if (msgEl) {
-          msgEl.style.color = '#147B5D';
-          msgEl.textContent = res.message || 'OTP sent! Please check your email inbox and spam folder.';
+          if (res.success === false) {
+            msgEl.style.color = '#BA1A1A';
+            msgEl.textContent = '⚠️ ' + (res.message || 'Email delivery failed.');
+          } else {
+            msgEl.style.color = '#147B5D';
+            msgEl.textContent = '✅ ' + (res.message || 'OTP sent! Please check your email inbox.');
+          }
         }
       } catch (err) {
         if (msgEl) {

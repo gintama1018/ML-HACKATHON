@@ -85,12 +85,18 @@ def send_otp_email(to_email: str, otp_code: str, name: str = "User") -> Tuple[bo
             with urllib.request.urlopen(req, timeout=10) as resp:
                 if resp.status in (200, 201):
                     print(f"[EMAIL SUCCESS] Resend delivered OTP to {to_email}")
-                    return True, "Email sent via Resend"
+                    return True, "Email delivered via Resend API"
         except urllib.error.HTTPError as he:
             err_body = he.read().decode("utf-8", errors="ignore")
             print(f"[EMAIL RESEND HTTP ERROR {he.code}]: {err_body}")
+            try:
+                err_json = json.loads(err_body)
+                return False, f"Resend: {err_json.get('message', err_body)}"
+            except Exception:
+                return False, f"Resend HTTP {he.code}: {err_body[:120]}"
         except Exception as e:
             print(f"[EMAIL RESEND ERROR]: {e}")
+            return False, f"Resend error: {str(e)}"
 
     # 2. Standard SMTP
     if SMTP_USER and SMTP_PASSWORD:
@@ -120,6 +126,6 @@ def send_otp_email(to_email: str, otp_code: str, name: str = "User") -> Tuple[bo
             print(f"[EMAIL SMTP ERROR]: {e}")
             return False, f"SMTP error: {str(e)}"
     
-    # 3. Development Fallback
+    # 3. No Provider Configured Fallback
     print(f"[DEV EMAIL SIMULATOR] To: {to_email} | OTP: {otp_code}")
-    return True, "OTP generated successfully"
+    return False, "No email credentials active on server. Set RESEND_API_KEY or SMTP_USER in Vercel."
