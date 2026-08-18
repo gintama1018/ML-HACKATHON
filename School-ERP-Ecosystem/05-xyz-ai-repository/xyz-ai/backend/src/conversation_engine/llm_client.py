@@ -85,10 +85,7 @@ class LLMClient:
         ctx: Dict[str, Any],
         lang: str = "en"
     ) -> LLMResponse:
-        """
-        High-Fidelity NLU Engine with context-aware intent routing, persona adaptation,
-        and native multilingual response synthesis.
-        """
+        """Degraded-mode keyword fallback NLU engine. Used automatically when no LLM API key is configured. Natural language understanding is significantly limited compared to real LLM routing."""
         tool_names = [t["function"]["name"] for t in tools]
         
         # -------------------------------------------------------------
@@ -261,6 +258,17 @@ class LLMClient:
                     }
                 }])
 
+        # Priority 2.5: Dissatisfaction Intent — proactively offer escalation choice
+        dissatisfied_keywords = [
+            "not satisfied", "not happy", "useless", "doesn't help", "does not help",
+            "wrong answer", "this isn't right", "this is wrong", "not helpful",
+            "not useful", "waste of time", "not working", "bad answer", "incorrect",
+            "संतुष्ट नहीं", "बेकार", "गलत जवाब", "உதவியாக இல்லை", "ভুল উত্তর"
+        ]
+        if any(k in msg_lower or k in last_user_msg for k in dissatisfied_keywords):
+            offer = multilingual_service.get_phrase("escalation_offer", lang=lang)
+            return LLMResponse(content=offer)
+
         # Priority 3: Dedicated Greetings & Social Pleasantries
         greeting_words = [
             "hello", "hi", "hey", "good morning", "good afternoon", "good evening",
@@ -270,6 +278,16 @@ class LLMClient:
         has_greeting = any(w in msg_lower or w in last_user_msg for w in greeting_words)
         has_data_query = any(k in msg_lower or k in last_user_msg for k in ["attendance", "percentage", "present", "absent", "mark", "report", "analytics", "उपस्थिति", "हाजिरी", "வருகை", "উপস্থিতি"])
         
+        # Pre-Priority: Implicit attendance intent (MUST check before greeting to avoid misclassification)
+        implicit_att_keywords = [
+            "how many days", "days i missed", "days did i miss", "miss school", "missed school",
+            "days present", "skip school", "bunked", "कितने दिन", "कितनी बार",
+            "எத்தனை நாள்", "கோடு", "কতদিন", "কতবার"
+        ]
+        if any(k in msg_lower or k in last_user_msg for k in implicit_att_keywords):
+            # Force attendance intent — do not misclassify as greeting
+            has_data_query = True
+
         if has_greeting and not has_data_query:
             role_key = f"greeting_{user.role}"
             greeting_reply = multilingual_service.get_phrase(role_key, lang=lang, name=user.name)
@@ -333,7 +351,7 @@ class LLMClient:
                     }])
 
         # Priority 7: Attendance Lookup
-        att_keywords = ["attendance", "present", "absent", "status", "days", "record", "percentage", "उपस्थिति", "हाजिरी", "வருகை", "উপস্থিতি", "check"]
+        att_keywords = ["attendance", "present", "absent", "status", "days", "record", "percentage", "उपस्थिति", "हाजिरी", "வருகை", "উপস্থিতি", "check", "miss school", "missed school", "how many days", "days i missed", "days did i miss", "skip school", "days present", "कितने दिन", "कितनी बार", "எத்தனை நாள்", "কতদিন"]
         is_attendance_lookup = any(k in msg_lower or k in last_user_msg for k in att_keywords)
         
         target_stu_id = ctx.get("target_student_id")

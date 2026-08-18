@@ -77,11 +77,19 @@ export class VoiceController {
       utterance.rate = 1.0;
       utterance.pitch = 1.05;
       
+      // Full IETF BCP-47 tag mapping for all 11 supported Indian languages
       const langCodes = {
         'en': 'en-IN',
         'hi': 'hi-IN',
         'ta': 'ta-IN',
-        'bn': 'bn-IN'
+        'bn': 'bn-IN',
+        'te': 'te-IN',
+        'mr': 'mr-IN',
+        'gu': 'gu-IN',
+        'kn': 'kn-IN',
+        'ml': 'ml-IN',
+        'pa': 'pa-IN',
+        'ur': 'ur-PK'
       };
       utterance.lang = langCodes[language] || 'en-IN';
 

@@ -127,6 +127,11 @@ class SchoolApp {
     if (nameEl) nameEl.textContent = this.currentUser.name;
     if (pillEl) pillEl.textContent = this.currentUser.role;
 
+    // Update avatar persona to match the logged-in role
+    if (this.avatar) {
+      this.avatar.setPersona(this.currentUser.role);
+    }
+
     // Update Staff Security Console visibility (Only for Teacher / Principal)
     const staffConsole = document.getElementById('staffConsoleCard');
     const isStaff = this.currentUser.role === 'teacher' || this.currentUser.role === 'principal';

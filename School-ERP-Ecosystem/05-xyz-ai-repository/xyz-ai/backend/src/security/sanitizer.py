@@ -34,6 +34,35 @@ INJECTION_PATTERNS: List[re.Pattern] = [
     re.compile(r"पिछला\s+निर्देश\s+(भूल|त्याग)", re.IGNORECASE),
     re.compile(r"सिस्टम\s+प्रॉम्प्ट\s+(दिखाओ|बताओ)", re.IGNORECASE),
     re.compile(r"पासवर्ड\s+(बताओ|दिखाओ)", re.IGNORECASE),
+
+    # 6. Multilingual jailbreak patterns (Tamil)
+    re.compile(r"முந்தைய\s+வழிமுறை\s+(மற|மற|புறக்கணி)", re.IGNORECASE),
+    re.compile(r"கடவுச்சொல்\s+(சொல்|காட்டு)", re.IGNORECASE),
+    re.compile(r"அமைப்பு\s+வழிமுறை\s+(காட்டு|சொல்)", re.IGNORECASE),
+
+    # 7. Multilingual jailbreak patterns (Bengali)
+    re.compile(r"পূর্ববর্তী\s+নির্দেশ\s+(ভুলে|উপেক্ষা)", re.IGNORECASE),
+    re.compile(r"পাসওয়ার্ড\s+(বলুন|দেখান)", re.IGNORECASE),
+
+    # 8. Multilingual jailbreak patterns (Urdu)
+    re.compile(r"پچھلی\s+ہدایات\s+(بھول|نظرانداز)", re.IGNORECASE),
+    re.compile(r"پاس\s+ورڈ\s+(بتاؤ|دکھاؤ)", re.IGNORECASE),
+
+    # 9. Obfuscation: Character substitution / l33tspeak variants
+    re.compile(r"ign0re\s+(pr3vious|previous)\s+(instr|inst)", re.IGNORECASE),
+    re.compile(r"disreg4rd|byp4ss|j41lbr3ak", re.IGNORECASE),
+    re.compile(r"y.u\s+ar.\s+now\s+(an?\s+)?(unr.strict|evil|adm.n)", re.IGNORECASE),
+
+    # 10. Indirect role-claim injection
+    re.compile(r"(act|pretend|behave)\s+as\s+(if\s+you\s+(are|were)\s+)?(an?\s+)?(admin|principal|unrestricted|teacher\s+with\s+all)", re.IGNORECASE),
+    re.compile(r"role\s+play\s+as\s+(an?\s+)?(admin|school\s+admin|system\s+admin|developer)", re.IGNORECASE),
+
+    # 11. Token stuffing / delimiter injection
+    re.compile(r"<\|?im_start\|?>|<\|?system\|?>|<\|?user\|?>|\[INST\]|\[SYS\]", re.IGNORECASE),
+    re.compile(r"###\s*(instruction|system|override|admin)", re.IGNORECASE),
+
+    # 12. Payload in base64-like blobs (heuristic: >40 char alphanum string mid-sentence)
+    re.compile(r"\b[A-Za-z0-9+/]{40,}={0,2}\b"),
 ]
 
 # Sensitive credential leakage regex masks

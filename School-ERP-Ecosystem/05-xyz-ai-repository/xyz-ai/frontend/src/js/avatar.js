@@ -1,5 +1,45 @@
+// Role-based avatar persona color palettes
+const AVATAR_PERSONAS = {
+  student: {
+    label: 'Student',
+    background: '#dbeafe',  // light blue
+    face: '#fef3c7',        // warm skin
+    hair: '#2563eb',        // blue cap
+    blush: 'rgba(251,113,133,0.40)',
+    mouth: '#e11d48',
+    statusIdleText: 'Ready to help you learn!'
+  },
+  parent: {
+    label: 'Parent',
+    background: '#fef3c7',  // warm amber
+    face: '#fed7aa',        // slightly deeper skin
+    hair: '#92400e',        // brown hair
+    blush: 'rgba(251,146,60,0.35)',
+    mouth: '#b45309',
+    statusIdleText: 'Here for your family\'s needs'
+  },
+  teacher: {
+    label: 'Teacher',
+    background: '#d1fae5',  // soft green
+    face: '#fef3c7',
+    hair: '#1e293b',        // formal dark
+    blush: 'rgba(52,211,153,0.30)',
+    mouth: '#065f46',
+    statusIdleText: 'Ready to assist your class'
+  },
+  principal: {
+    label: 'Principal',
+    background: '#ede9fe',  // soft indigo
+    face: '#fef3c7',
+    hair: '#3b0764',        // authoritative dark purple
+    blush: 'rgba(139,92,246,0.25)',
+    mouth: '#4c1d95',
+    statusIdleText: 'School analytics at your command'
+  }
+};
+
 export class AvatarRenderer {
-  constructor(canvasId) {
+  constructor(canvasId, role = 'student') {
     this.canvas = document.getElementById(canvasId);
     this.ctx = this.canvas ? this.canvas.getContext('2d') : null;
     this.state = 'idle'; // idle, listening, thinking, speaking
@@ -7,10 +47,20 @@ export class AvatarRenderer {
     this.blinkProgress = 0;
     this.isBlinking = false;
     this.animationFrameId = null;
+    this.persona = AVATAR_PERSONAS[role] || AVATAR_PERSONAS.student;
 
     if (this.canvas) {
       this.initBlinkTimer();
       this.startLoop();
+    }
+  }
+
+  /** Call this whenever the user role changes after login */
+  setPersona(role) {
+    this.persona = AVATAR_PERSONAS[role] || AVATAR_PERSONAS.student;
+    const indicator = document.getElementById('assistantStatusIndicator');
+    if (indicator && this.state === 'idle') {
+      indicator.innerHTML = `<span class="pulse-dot"></span> ${this.persona.statusIdleText}`;
     }
   }
 
@@ -50,7 +100,8 @@ export class AvatarRenderer {
       } else if (newState === 'speaking') {
         indicator.innerHTML = '<span class="pulse-dot" style="background:#2563eb"></span> Speaking...';
       } else {
-        indicator.innerHTML = '<span class="pulse-dot"></span> Ready to assist';
+        const idleText = this.persona ? this.persona.statusIdleText : 'Ready to assist';
+        indicator.innerHTML = `<span class="pulse-dot"></span> ${idleText}`;
       }
     }
   }
@@ -107,20 +158,22 @@ export class AvatarRenderer {
 
     ctx.clearRect(0, 0, w, h);
 
-    // Warm soft circular background
-    ctx.fillStyle = '#eff6ff';
+    const p = this.persona || AVATAR_PERSONAS.student;
+
+    // Role-specific circular background
+    ctx.fillStyle = p.background;
     ctx.beginPath();
     ctx.arc(cx, cy, 30, 0, Math.PI * 2);
     ctx.fill();
 
     // Friendly Face Base
-    ctx.fillStyle = '#fef3c7'; // soft warm tone
+    ctx.fillStyle = p.face;
     ctx.beginPath();
     ctx.arc(cx, cy, 20, 0, Math.PI * 2);
     ctx.fill();
 
-    // Friendly Hair / Cap
-    ctx.fillStyle = '#334155';
+    // Role-specific Hair / Cap
+    ctx.fillStyle = p.hair;
     ctx.beginPath();
     ctx.arc(cx, cy - 10, 16, Math.PI * 0.9, Math.PI * 2.1);
     ctx.fill();
@@ -136,8 +189,8 @@ export class AvatarRenderer {
     ctx.ellipse(cx + eyeSpacing, eyeY, 2.5, eyeH, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Soft Blush
-    ctx.fillStyle = 'rgba(251, 113, 133, 0.4)';
+    // Soft Blush (role-tinted)
+    ctx.fillStyle = p.blush;
     ctx.beginPath();
     ctx.arc(cx - 10, cy + 5, 3, 0, Math.PI * 2);
     ctx.arc(cx + 10, cy + 5, 3, 0, Math.PI * 2);
@@ -145,8 +198,8 @@ export class AvatarRenderer {
 
     // Mouth Viseme
     const mouthY = cy + 9;
-    ctx.strokeStyle = '#e11d48';
-    ctx.fillStyle = '#e11d48';
+    ctx.strokeStyle = p.mouth;
+    ctx.fillStyle = p.mouth;
     ctx.lineWidth = 1.5;
 
     ctx.beginPath();

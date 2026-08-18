@@ -61,7 +61,8 @@ def health_check():
         "version": "1.0.0",
         "security_mode": "hardened_rbac_active",
         "rate_limiting": "enabled",
-        "supported_languages_count": 11
+        "supported_languages_count": 11,
+        "nlu_mode": settings.nlu_mode
     }
 
 # Mount Frontend Static Assets
