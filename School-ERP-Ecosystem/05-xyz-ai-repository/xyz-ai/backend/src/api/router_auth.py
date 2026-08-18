@@ -65,10 +65,9 @@ def send_otp(req: SendOTPRequest, db: Session = Depends(get_db)):
         from src.auth.otp_service import generate_otp
         otp = generate_otp()
         return {
-            "message": "OTP sent! Please check your inbox or use the verification code.",
+            "message": "OTP verification code sent. Please check your inbox.",
             "email": req.email,
-            "expires_in_seconds": 600,
-            "dev_hint": otp
+            "expires_in_seconds": 600
         }
 
 @router.post("/verify-otp")

@@ -38,10 +38,9 @@ def create_and_send_otp(db: Session, email: str, name: str = "User", purpose: st
     
     success, msg = send_otp_email(email_clean, otp_code, name)
     return {
-        "message": "OTP sent successfully. Please check your email inbox (and spam folder).",
+        "message": "OTP verification code sent. Please check your email inbox and spam folder.",
         "email": email_clean,
-        "expires_in_seconds": 600,
-        "dev_hint": otp_code if not os.getenv("SMTP_USER") else None
+        "expires_in_seconds": 600
     }
 
 def verify_otp_code(db: Session, email: str, otp_code: str, purpose: str = "registration") -> bool:
