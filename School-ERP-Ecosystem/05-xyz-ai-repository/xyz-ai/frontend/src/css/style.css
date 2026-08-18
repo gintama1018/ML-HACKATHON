@@ -1,12 +1,12 @@
 /* =============================================================================
    XYZ AI — Warm Academic Humanism Design System
-   Matches User Reference Mockups:
+   Matches Exact User Reference Mockups:
    1. Role Selection & Login Screen (2x2 Role Selector + Warm Inputs)
-   2. Profile Screen (Avatar, Badges, Personal Info, Academic Profile, Settings)
-   3. Student/Parent Dashboard (Term Overview Donut, AI Insight, Attendance History)
+   2. Student / Parent / Staff Profile Screen (Avatar, Badges, Personal Info, Academic Profile, Settings)
+   3. Student & Parent Dashboard (Term Overview Donut, AI Insight, Attendance History)
    4. Teacher Dashboard (Metric Cards, P/A/L Pill Toggles, Save Attendance)
    5. Principal Dashboard (School-wide %, Weekly Bars, Alerts, AI Insight, Class Breakdown)
-   6. Chat Screen (Animated Avatar, Speech STT/TTS, Inline Progress Rings & Escalation)
+   6. Chat Screen (Animated Canvas Avatar, Speech STT/TTS, Inline Progress Rings & Escalation)
    ============================================================================= */
 
 @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
@@ -52,7 +52,7 @@
   /* Elevation Shadows */
   --shadow-sm:                0 2px 8px rgba(45, 38, 26, 0.04);
   --shadow-md:                0 4px 20px rgba(45, 38, 26, 0.06);
-  --shadow-lg:                0 12px 36px rgba(45, 38, 26, 0.10);
+  --shadow-lg:                0 12px 36px rgba(45, 38, 26, 0.12);
 
   /* Border Radii */
   --radius-sm:                8px;
@@ -119,12 +119,7 @@ body {
   font-size: 1rem;
   overflow: hidden;
   box-shadow: var(--shadow-sm);
-}
-
-.nav-avatar-img img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  transition: background 0.3s;
 }
 
 .nav-user-title {
@@ -144,17 +139,7 @@ body {
   padding: 2px 8px;
   border-radius: var(--radius-full);
   display: inline-block;
-}
-
-.nav-brand-title {
-  font-family: var(--font-heading);
-  font-weight: 700;
-  font-size: 1.35rem;
-  color: #8C4B00;
-  letter-spacing: -0.01em;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  transition: all 0.3s;
 }
 
 /* Nav Center Tabs */
@@ -173,7 +158,7 @@ body {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-muted);
-  padding: 6px 18px;
+  padding: 8px 20px;
   border-radius: var(--radius-full);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -200,19 +185,16 @@ body {
   background: var(--surface-white);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-full);
-  padding: 6px 14px;
+  padding: 8px 16px;
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-dark);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
   outline: none;
 }
 
 /* ---------------------------------------------------------------------------
-   MAIN CONTENT CONTAINER
+   PAGE CONTAINER
    --------------------------------------------------------------------------- */
 .page-container {
   max-width: 1200px;
@@ -226,11 +208,16 @@ body {
    SCREEN 1: LOGIN & ROLE SELECTION (Matches Screenshot 1)
    --------------------------------------------------------------------------- */
 .auth-page-wrap {
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
-  min-height: calc(100vh - 40px);
+  min-height: 100vh;
   padding: 24px;
+  background: var(--surface-base);
+}
+
+.auth-page-wrap.active {
+  display: flex;
 }
 
 .auth-modal-card {
@@ -398,8 +385,23 @@ body {
   text-decoration: none;
 }
 
+.auth-error-alert {
+  background: var(--status-absent-bg);
+  color: var(--status-absent);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  display: none;
+}
+
+.auth-error-alert.visible {
+  display: block;
+}
+
 /* ---------------------------------------------------------------------------
-   SCREEN 2: STUDENT / USER PROFILE (Matches Screenshot 2)
+   SCREEN 2: USER PROFILE (Matches Screenshot 2)
    --------------------------------------------------------------------------- */
 .profile-hero-section {
   display: flex;
@@ -417,12 +419,6 @@ body {
   box-shadow: var(--shadow-sm);
   flex-shrink: 0;
   border: 3px solid var(--surface-white);
-}
-
-.profile-avatar-wrap img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .profile-edit-btn {
@@ -478,7 +474,6 @@ body {
   color: #C05621;
 }
 
-/* 2-Column Info Cards */
 .profile-grid-2col {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -499,9 +494,7 @@ body {
 .profile-info-card::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 0; left: 0; right: 0;
   height: 4px;
 }
 
@@ -554,7 +547,6 @@ body {
   color: var(--text-dark);
 }
 
-/* Settings List Card */
 .profile-settings-card {
   background: var(--surface-white);
   border-radius: var(--radius-xl);
@@ -734,7 +726,6 @@ body {
   color: var(--text-muted);
 }
 
-/* AI Insight Box (Screenshot 3 & 5) */
 .ai-insight-box {
   background: var(--surface-tint-green);
   border-radius: var(--radius-xl);
@@ -778,7 +769,6 @@ body {
   cursor: pointer;
 }
 
-/* Recent Attendance History List Card (Screenshot 3) */
 .history-card-wrap {
   background: var(--surface-white);
   border-radius: var(--radius-xl);
@@ -845,50 +835,17 @@ body {
   font-size: 0.875rem;
 }
 
-.history-status-icon.present {
-  background: var(--status-present-bg);
-  color: var(--status-present);
-}
+.history-status-icon.present { background: var(--status-present-bg); color: var(--status-present); }
+.history-status-icon.late { background: var(--status-late-bg); color: var(--status-late); }
+.history-status-icon.absent { background: var(--status-absent-bg); color: var(--status-absent); }
 
-.history-status-icon.late {
-  background: var(--status-late-bg);
-  color: var(--status-late);
-}
+.history-date-main { font-weight: 600; font-size: 0.9375rem; color: var(--text-dark); }
+.history-date-sub { font-size: 0.8125rem; color: var(--text-muted); }
 
-.history-status-icon.absent {
-  background: var(--status-absent-bg);
-  color: var(--status-absent);
-}
-
-.history-date-main {
-  font-weight: 600;
-  font-size: 0.9375rem;
-  color: var(--text-dark);
-}
-
-.history-date-sub {
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-}
-
-.history-status-badge {
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
+.history-status-badge { font-size: 0.8125rem; font-weight: 600; }
 .history-status-badge.present { color: var(--status-present); }
-.history-status-badge.late {
-  background: var(--status-late-bg);
-  color: var(--status-late);
-  padding: 4px 12px;
-  border-radius: var(--radius-full);
-}
-.history-status-badge.absent {
-  background: var(--status-absent-bg);
-  color: var(--status-absent);
-  padding: 4px 12px;
-  border-radius: var(--radius-full);
-}
+.history-status-badge.late { background: var(--status-late-bg); color: var(--status-late); padding: 4px 12px; border-radius: var(--radius-full); }
+.history-status-badge.absent { background: var(--status-absent-bg); color: var(--status-absent); padding: 4px 12px; border-radius: var(--radius-full); }
 
 /* ---------------------------------------------------------------------------
    SCREEN 4: TEACHER DASHBOARD (Matches Screenshot 4)
@@ -937,7 +894,6 @@ body {
   margin-top: 4px;
 }
 
-/* Teacher Roster Table & P/A/L Pill Toggles */
 .teacher-roster-card {
   background: var(--surface-white);
   border-radius: var(--radius-xl);
@@ -991,13 +947,6 @@ body {
   overflow: hidden;
 }
 
-.roster-avatar-photo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* P / A / L Pill Toggle Group */
 .pal-toggle-group {
   display: inline-flex;
   background: var(--surface-input);
@@ -1020,20 +969,9 @@ body {
   transition: all 0.15s ease;
 }
 
-.pal-pill-btn.active.p {
-  background: #005E46;
-  color: #ffffff;
-}
-
-.pal-pill-btn.active.a {
-  background: #BA1A1A;
-  color: #ffffff;
-}
-
-.pal-pill-btn.active.l {
-  background: #8F4E00;
-  color: #ffffff;
-}
+.pal-pill-btn.active.p { background: #005E46; color: #ffffff; }
+.pal-pill-btn.active.a { background: #BA1A1A; color: #ffffff; }
+.pal-pill-btn.active.l { background: #8F4E00; color: #ffffff; }
 
 .teacher-save-bar {
   display: flex;
@@ -1100,13 +1038,7 @@ body {
   gap: 24px;
 }
 
-.principal-left-col {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.principal-right-col {
+.principal-left-col, .principal-right-col {
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -1216,7 +1148,7 @@ body {
    --------------------------------------------------------------------------- */
 .chat-page-layout {
   display: grid;
-  grid-template-columns: 1fr 380px;
+  grid-template-columns: 1fr 360px;
   gap: 24px;
   height: calc(100vh - 120px);
 }
@@ -1332,6 +1264,65 @@ body {
   background: #FEE2E2;
   border-color: #EF4444;
   animation: pulse 1s infinite alternate;
+}
+
+/* ---------------------------------------------------------------------------
+   MODALS (Fixed Overlays — NEVER INLINE)
+   --------------------------------------------------------------------------- */
+.modal-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(45, 38, 26, 0.55);
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.modal-backdrop.active {
+  display: flex;
+}
+
+.modal-window {
+  background: var(--surface-white);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 520px;
+  overflow: hidden;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-header-bar {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-input);
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Pulse Dot */
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10B981;
+  display: inline-block;
 }
 
 @keyframes pulse {
