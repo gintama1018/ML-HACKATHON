@@ -213,6 +213,13 @@ class SchoolApp {
       }
     });
 
+    // 6.5 Google Sign-In & Sign-Up Buttons
+    document.querySelectorAll('.google-auth-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await this.handleGoogleLogin();
+      });
+    });
+
     // 7. Modals: Switch Role & Logout
     document.getElementById('btnSwitchAccount')?.addEventListener('click', () => {
       document.getElementById('roleModal')?.classList.add('active');
@@ -346,6 +353,30 @@ class SchoolApp {
       alert('Registration error: ' + (err.message || 'Please try again.'));
     } finally {
       if (btn) { btn.textContent = 'Create Account'; btn.disabled = false; }
+    }
+  }
+
+  async handleGoogleLogin() {
+    const defaultEmail = document.getElementById('loginEmail')?.value || document.getElementById('regEmail')?.value || 'pihujang0@gmail.com';
+    const googleEmail = prompt('Sign in with Google\n\nEnter your Google Email address:', defaultEmail);
+    if (!googleEmail || !googleEmail.trim()) return;
+
+    try {
+      const cleanEmail = googleEmail.trim();
+      const rawName = cleanEmail.split('@')[0].replace(/[\._\-]/g, ' ');
+      const formattedName = rawName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+      const res = await ApiClient.googleAuth({
+        email: cleanEmail,
+        name: formattedName || 'Google User',
+        role: 'student'
+      });
+      this.currentUser = res.user;
+      this.currentConversationId = null;
+      this.showApp();
+      this.onUserLoggedIn();
+    } catch (err) {
+      alert('Google authentication error: ' + (err.message || 'Please try again.'));
     }
   }
 

@@ -50,6 +50,21 @@ export class ApiClient {
     return data;
   }
 
+  static async googleAuth(payload) {
+    const res = await fetch(`${API_BASE}/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Google sign-in failed');
+    }
+    const data = await res.json();
+    this.setToken(data.access_token);
+    return data;
+  }
+
   static async sendOTP(email, name = 'User', purpose = 'registration') {
     const res = await fetch(`${API_BASE}/auth/send-otp`, {
       method: 'POST',
