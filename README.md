@@ -4,8 +4,10 @@
 [![Python](https://img.shields.io/badge/Python-3.11%2B%20%7C%203.13-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg)](https://fastapi.tiangolo.com)
 [![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0%2B-red.svg)](https://sqlalchemy.org)
-[![Tests](https://img.shields.io/badge/Tests-59%2F59%20Passing-brightgreen.svg)](#-automated-test-suite-59--59-passing)
+[![Tests](https://img.shields.io/badge/Tests-63%2F63%20Passing-brightgreen.svg)](#-automated-test-suite-63--63-passing)
 [![Security](https://img.shields.io/badge/RBAC-Server--Enforced-success.svg)](#-security--rbac-boundary-matrix)
+[![Auth](https://img.shields.io/badge/Auth-bcrypt%20Multi--User-blue.svg)](#-authentication--self-service-registration)
+[![Database](https://img.shields.io/badge/Postgres-Supabase%20Ready-3ECF8E.svg)](#-database--production-supabase-setup)
 
 ---
 
@@ -14,6 +16,9 @@
 **XYZ AI School Assistant** is an enterprise AI companion for K-12 school ERP ecosystems. Built with a **defense-in-depth, server-side-only architecture**, every claim, calculation, and action is backed by deterministic SQL database operations and strict application-layer authorization checks.
 
 The system features:
+- **Design System ("Warm Academic Humanism")**: Soft cream surfaces, warm navy typography (Quicksand + Inter), role-specific accent identities (Student Warm Orange, Parent Soft Green, Teacher Approachable Blue, Principal Warm Navy), and Chart.js visualizations.
+- **Real Multi-User Auth & Registration**: Bcrypt password hashing with per-user dynamic salting, self-service registration (`/register`) with RBAC boundaries (Principal blocked from self-registration, Teachers require approval).
+- **Production Postgres (Supabase)**: Serverless-compatible session pooler connection handling, alongside zero-config local SQLite fallback.
 - **Natural Language & Intent Understanding**: Context-aware distinction between greetings, academic/homework assistance, missing parameter disambiguation, escalation requests, and attendance queries.
 - **Native 11 Indian Language Support**: Seamless real-time localized synthesis across Hindi (`hi`), Tamil (`ta`), Bengali (`bn`), English (`en`), and other major Indian languages.
 - **Two-Stage Escalation State Machine**: Creates `PENDING` tickets with a mandatory confirmation gate before dispatching to teachers or management.
@@ -156,7 +161,7 @@ All seeded accounts share the default password: **`School@123`**
 
 ---
 
-## 🧪 Automated Test Suite (59 / 59 Passing)
+## 🧪 Automated Test Suite (63 / 63 Passing)
 
 The test suite covers every layer of the architecture:
 
@@ -164,23 +169,23 @@ The test suite covers every layer of the architecture:
 ============================= test session starts =============================
 platform win32 -- Python 3.13.7, pytest-9.1.1
 rootdir: School-ERP-Ecosystem/05-xyz-ai-repository/xyz-ai/backend
-collected 59 items
+collected 63 items
 
 tests/integration/test_phase9_full_integration_gate.py ........... [ 11%] (7 Passed)
-tests/security-redteam/test_adversarial_suite.py ................. [ 37%] (15 Passed)
-tests/unit/test_natural_language_and_i18n_fixes.py ............... [ 49%] (7 Passed)
-tests/unit/test_phase1_data_model.py ............................. [ 55%] (4 Passed)
-tests/unit/test_phase2_auth_rbac.py .............................. [ 69%] (8 Passed)
-tests/unit/test_phase3_tool_layer.py ............................. [ 77%] (5 Passed)
-tests/unit/test_phase4_conversation_engine.py .................... [ 86%] (5 Passed)
-tests/unit/test_phase6_escalation.py ............................. [ 91%] (3 Passed)
+tests/security-redteam/test_adversarial_suite.py ................. [ 34%] (15 Passed)
+tests/unit/test_natural_language_and_i18n_fixes.py ............... [ 46%] (7 Passed)
+tests/unit/test_phase1_data_model.py ............................. [ 52%] (4 Passed)
+tests/unit/test_phase2_auth_rbac.py .............................. [ 71%] (12 Passed)
+tests/unit/test_phase3_tool_layer.py ............................. [ 79%] (5 Passed)
+tests/unit/test_phase4_conversation_engine.py .................... [ 87%] (5 Passed)
+tests/unit/test_phase6_escalation.py ............................. [ 92%] (3 Passed)
 tests/unit/test_phase7_i18n.py ................................... [ 96%] (3 Passed)
 tests/unit/test_phase8_voice.py .................................. [100%] (2 Passed)
 
-============================= 59 passed in 17.61s =============================
+============================= 63 passed in 23.32s =============================
 ```
 
-### Red-Team Adversarial Test Coverage (15 Attack Scenarios Blocked):
+### Red-Team & RBAC Test Coverage (19 Attack & Boundary Scenarios Blocked):
 1. **DAN Jailbreak & System Instruction Override** $\rightarrow$ *Blocked by Prompt Sanitizer*
 2. **System Prompt & Developer Directive Extraction** $\rightarrow$ *Blocked by Prompt Sanitizer*
 3. **Student Claiming Principal Role in Text** $\rightarrow$ *Blocked by Server-Signed JWT RBAC*
@@ -196,6 +201,40 @@ tests/unit/test_phase8_voice.py .................................. [100%] (2 Pas
 13. **Unauthorized Escalation Confirmation** $\rightarrow$ *Blocked by Ownership Gate*
 14. **Teacher Attempting School-wide Analytics** $\rightarrow$ *Blocked by Scope Gate*
 15. **Audit Trail Verification for All Attacks** $\rightarrow$ *Logged in Immutable `audit_logs` SQL Table*
+16. **Bcrypt Per-User Dynamic Salting** $\rightarrow$ *Verified different hashes for identical passwords*
+17. **Principal Self-Registration Protection** $\rightarrow$ *Blocked with HTTP 403 Forbidden*
+18. **Unverified Teacher Attendance Restriction** $\rightarrow$ *Blocked at RBAC layer pending Principal approval*
+19. **Student Self-Registration & Constraint Validation** $\rightarrow$ *Enforces unique (class, section, roll_no)*
+
+---
+
+## 🔐 Authentication & Self-Service Registration
+
+The system supports multi-user authentication with password security:
+- **Password Hashing**: `bcrypt` with automatic per-user salting via `passlib`.
+- **JWT Tokens**: 24-hour expiration with signed subject and role claims.
+- **Registration Endpoints**:
+  - `POST /api/v1/auth/register` — Role-validated self-registration for Students, Parents, and Teachers.
+  - Principal accounts cannot be self-registered (HTTP 403).
+  - Teacher accounts are created with `is_verified = False` and can be approved by the Principal from the Staff Console (`POST /api/v1/portal/admin/teachers/{user_id}/approve`).
+
+---
+
+## 🗄️ Database & Production Supabase Setup
+
+The backend connects seamlessly to PostgreSQL (Supabase) in production and falls back to local SQLite for zero-config development.
+
+### Supabase Connection (Port 6543 Session Pooler)
+1. Create a Supabase project at [supabase.com](https://supabase.com).
+2. Copy the **Session Pooler** connection string: `Settings → Database → Connection string → Session mode (Port 6543)`.
+3. Set the environment variable:
+```bash
+DATABASE_URL="postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres"
+```
+4. Seed the Supabase database:
+```bash
+python seed/seed_data.py
+```
 
 ---
 

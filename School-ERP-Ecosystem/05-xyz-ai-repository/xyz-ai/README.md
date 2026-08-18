@@ -78,16 +78,17 @@ All users share the default password: **`School@123`**
 
 ---
 
-## 4. Test Suites & Verification Results (52 / 52 Passed)
+## 4. Test Suites & Verification Results (63 / 63 Passed)
 
 ### Test Coverage Summary:
-- **Unit Tests (17 tests)**: Database schema, foreign key cascade, auth JWT tamper/expiration, RBAC policy boundaries, ERP adapter tools, escalation state machine.
+- **Unit Tests (21 tests)**: Database schema, foreign key cascade, bcrypt salting, student/parent/teacher self-registration, principal self-registration blocking, auth JWT tamper/expiration, RBAC policy boundaries, ERP adapter tools, escalation state machine.
 - **Security Red-Team Suite (15 tests)**: Adversarial attacks covering jailbreaks, prompt injection, role impersonation, system prompt extraction, credential fishing, cross-student peeking, cross-class teacher tampering, SQL injection, and rate limiting.
 - **Integration Gate Suite (7 tests)**: Full 4-persona conversational flows, parent multi-child disambiguation, HTTP escalation lifecycle, voice turn processing, and 20+ concurrent session isolation.
 - **Multi-Language & Voice Suites (13 tests)**: 11-language catalog, 4 deep-tested languages (English, Hindi, Tamil, Bengali), noisy voice rejection, and viseme TTS sync.
+- **NLU & Intent Regression Suite (7 tests)**: Disambiguation, greeting isolation, implicit attendance query recognition, proactive escalation offer.
 
 ```bash
-============================= 52 passed in 18.98s =============================
+============================= 63 passed in 23.32s =============================
 ```
 
 ---
