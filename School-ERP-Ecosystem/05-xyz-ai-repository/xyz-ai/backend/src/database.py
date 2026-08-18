@@ -28,8 +28,17 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+_db_initialized = False
+
 def get_db():
     """FastAPI Dependency for database sessions."""
+    global _db_initialized
+    if not _db_initialized:
+        try:
+            init_db()
+            _db_initialized = True
+        except Exception as e:
+            print(f"[DB INIT WARNING]: {e}")
     db = SessionLocal()
     try:
         yield db

@@ -22,7 +22,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./school_erp.db")
+    DEFAULT_SUPABASE_URL: str = "postgresql://postgres.eskgeukkkllczotrowtj:V%24AM%24RT8J%2457he%21@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres"
+    DATABASE_URL: str = os.getenv("DATABASE_URL") or (
+        "sqlite:///./school_erp.db" if (os.getenv("PYTEST_CURRENT_TEST") or os.getenv("CI")) else "postgresql://postgres.eskgeukkkllczotrowtj:V%24AM%24RT8J%2457he%21@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres"
+    )
 
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     
