@@ -3,12 +3,12 @@ import { AvatarRenderer } from './avatar.js';
 import { VoiceController } from './voice.js';
 import { DashboardRenderer } from './dashboards.js';
 
-// Role accent palette (matches DESIGN.MD)
+// Role accent palette (strictly from DESIGN.MD)
 const ROLE_ACCENTS = {
-  student:   { accent: '#FF9F43', light: 'rgba(255,159,67,0.10)' },
-  parent:    { accent: '#58B19F', light: 'rgba(88,177,159,0.10)' },
-  teacher:   { accent: '#54A0FF', light: 'rgba(84,160,255,0.10)' },
-  principal: { accent: '#2C3E50', light: 'rgba(44,62,80,0.10)' }
+  student:   { accent: '#FF9F43', light: 'rgba(255, 159, 67, 0.12)' },
+  parent:    { accent: '#58B19F', light: 'rgba(88, 177, 159, 0.12)' },
+  teacher:   { accent: '#54A0FF', light: 'rgba(84, 160, 255, 0.12)' },
+  principal: { accent: '#2C3E50', light: 'rgba(44, 62, 80, 0.10)' }
 };
 
 class SchoolApp {
@@ -18,7 +18,6 @@ class SchoolApp {
     this.currentLanguage = 'en';
     this.avatar = null;
     this.voice = null;
-    this.miniChartInstances = {};  // track Chart.js instances in bubbles
 
     this.init();
   }
@@ -30,7 +29,7 @@ class SchoolApp {
     this.bindEvents();
     await this.loadLanguages();
 
-    // Try restore existing session
+    // Check for stored session
     try {
       if (ApiClient.getToken()) {
         const userData = await ApiClient.getMe();
@@ -47,23 +46,27 @@ class SchoolApp {
   }
 
   // ---------------------------------------------------------------------------
-  // SCREEN MANAGEMENT
+  // SCREEN VISIBILITY
   // ---------------------------------------------------------------------------
   showAuth() {
     document.getElementById('authScreen').classList.add('active');
-    document.getElementById('appContent').classList.remove('active');
+    const app = document.getElementById('appContent');
+    app.classList.add('hidden');
+    app.style.display = 'none';
   }
 
   showApp() {
     document.getElementById('authScreen').classList.remove('active');
-    document.getElementById('appContent').classList.add('active');
+    const app = document.getElementById('appContent');
+    app.classList.remove('hidden');
+    app.style.display = 'flex';
   }
 
   // ---------------------------------------------------------------------------
-  // AUTH EVENTS (Login / Register)
+  // EVENT WIRING
   // ---------------------------------------------------------------------------
   bindEvents() {
-    // LOGIN FORM
+    // LOGIN
     document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('loginEmail').value.trim();
@@ -71,38 +74,35 @@ class SchoolApp {
       await this.handleLogin(email, password);
     });
 
-    // REGISTER FORM
+    // REGISTER
     document.getElementById('registerForm')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       await this.handleRegister();
     });
 
-    // Role-conditional fields
+    // Dynamic Role-conditional fields in registration
     document.getElementById('regRole')?.addEventListener('change', (e) => {
       const role = e.target.value;
       const studentFields = document.getElementById('regStudentFields');
       const parentFields = document.getElementById('regParentFields');
 
-      studentFields?.classList.toggle('visible', role === 'student');
-      studentFields?.classList.toggle('hidden', role !== 'student');
-      parentFields?.classList.toggle('visible', role === 'parent');
-      parentFields?.classList.toggle('hidden', role !== 'parent');
+      if (studentFields) studentFields.classList.toggle('hidden', role !== 'student');
+      if (parentFields) parentFields.classList.toggle('hidden', role !== 'parent');
     });
 
-    // Show register form
+    // Switch between Login and Register views
     document.getElementById('showRegister')?.addEventListener('click', (e) => {
       e.preventDefault();
       this.switchAuthMode('register');
     });
 
-    // Show login form
     document.getElementById('showLogin')?.addEventListener('click', (e) => {
       e.preventDefault();
       this.switchAuthMode('login');
     });
 
-    // Demo account quick-select (both auth screen + role modal)
-    document.querySelectorAll('.role-select-card[data-email]').forEach(btn => {
+    // One-click demo account buttons
+    document.querySelectorAll('.demo-account-pill[data-email]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const email = btn.getAttribute('data-email');
         const password = btn.getAttribute('data-password') || 'School@123';
@@ -110,7 +110,7 @@ class SchoolApp {
       });
     });
 
-    // Role Modal
+    // Role modal
     document.getElementById('btnSwitchRole')?.addEventListener('click', () => this.openRoleModal());
     document.getElementById('btnCloseRoleModal')?.addEventListener('click', () => this.closeRoleModal());
     document.getElementById('roleModal')?.addEventListener('click', (e) => {
@@ -126,7 +126,7 @@ class SchoolApp {
       this.switchAuthMode('login');
     });
 
-    // CHAT form
+    // Chat form submit
     const chatInput = document.getElementById('chatInput');
     document.getElementById('chatForm')?.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -137,20 +137,30 @@ class SchoolApp {
       await this.handleUserMessage(text);
     });
 
-    // Auto-resize textarea
+    // Auto-grow chat textarea
     chatInput?.addEventListener('input', () => {
       chatInput.style.height = 'auto';
-      chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+      chatInput.style.height = Math.min(chatInput.scrollHeight, 140) + 'px';
     });
 
-    // Mic
+    // Enter key submits (Shift+Enter for newline)
+    chatInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('chatForm')?.requestSubmit();
+      }
+    });
+
+    // Mic Voice STT
     const micBtn = document.getElementById('btnVoiceRecord');
     micBtn?.addEventListener('click', () => {
       if (this.voice.isRecording) {
         this.voice.stopListening();
         micBtn.classList.remove('recording');
+        this.avatar?.setState('idle');
       } else {
         micBtn.classList.add('recording');
+        this.avatar?.setState('listening');
         this.voice.startListening(
           async (transcript, conf) => {
             micBtn.classList.remove('recording');
@@ -158,14 +168,15 @@ class SchoolApp {
           },
           (err) => {
             micBtn.classList.remove('recording');
-            console.warn('Voice error:', err);
+            this.avatar?.setState('idle');
+            console.warn('Voice recognition error:', err);
           },
           this.currentLanguage
         );
       }
     });
 
-    // Language selector
+    // Language dropdown
     document.getElementById('langSelect')?.addEventListener('change', (e) => {
       this.currentLanguage = e.target.value;
     });
@@ -177,7 +188,7 @@ class SchoolApp {
       });
     });
 
-    // Staff console
+    // Staff security console modal
     document.getElementById('btnOpenStaffConsole')?.addEventListener('click', () => this.openStaffConsole());
     document.getElementById('btnCloseStaffModal')?.addEventListener('click', () => this.closeStaffConsole());
     document.getElementById('staffConsoleModal')?.addEventListener('click', (e) => {
@@ -185,19 +196,23 @@ class SchoolApp {
     });
 
     // Console tabs
-    document.querySelectorAll('.console-tab').forEach(tab => {
+    document.querySelectorAll('#staffConsoleModal .btn[data-tab]').forEach(tab => {
       tab.addEventListener('click', () => {
-        document.querySelectorAll('.console-tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.console-panel').forEach(p => p.classList.remove('active'));
-        tab.classList.add('active');
-        const panel = document.getElementById(`panel${tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1)}`);
-        panel?.classList.add('active');
+        document.querySelectorAll('#staffConsoleModal .btn[data-tab]').forEach(t => {
+          t.style.borderBottomColor = 'transparent';
+        });
+        tab.style.borderBottomColor = 'var(--current-accent)';
+
+        const tabName = tab.dataset.tab;
+        document.getElementById('panelAudit')?.classList.toggle('hidden', tabName !== 'audit');
+        document.getElementById('panelAttacks')?.classList.toggle('hidden', tabName !== 'attacks');
+        document.getElementById('panelApprovals')?.classList.toggle('hidden', tabName !== 'approvals');
       });
     });
   }
 
   // ---------------------------------------------------------------------------
-  // AUTH HELPERS
+  // AUTH LOGIC
   // ---------------------------------------------------------------------------
   switchAuthMode(mode) {
     const isLogin = mode === 'login';
@@ -205,8 +220,8 @@ class SchoolApp {
     document.getElementById('registerForm').classList.toggle('hidden', isLogin);
     document.getElementById('loginSwitchLink').classList.toggle('hidden', !isLogin);
     document.getElementById('registerSwitchLink').classList.toggle('hidden', isLogin);
-    document.getElementById('authTitle').textContent = isLogin ? 'Welcome Back' : 'Create Account';
-    document.getElementById('authSubtitle').textContent = isLogin ? 'Sign in to your school account' : 'Register as a student, parent, or teacher';
+    document.getElementById('authTitle').textContent = isLogin ? 'Welcome to XYZ AI' : 'Create School Account';
+    document.getElementById('authSubtitle').textContent = isLogin ? 'Your empathetic school companion & ERP assistant' : 'Register as a student, parent, or teacher';
     this.clearAuthError();
   }
 
@@ -225,7 +240,7 @@ class SchoolApp {
   async handleLogin(email, password) {
     this.clearAuthError();
     const btn = document.getElementById('loginSubmitBtn');
-    if (btn) { btn.textContent = 'Signing in…'; btn.disabled = true; }
+    if (btn) { btn.textContent = 'Signing in...'; btn.disabled = true; }
     try {
       const data = await ApiClient.login(email, password);
       this.currentUser = data.user;
@@ -234,16 +249,16 @@ class SchoolApp {
       this.onUserLoggedIn();
       this.closeRoleModal();
     } catch (err) {
-      this.showAuthError(err.message || 'Login failed. Check your credentials.');
+      this.showAuthError(err.message || 'Login failed. Please verify credentials.');
     } finally {
-      if (btn) { btn.textContent = 'Sign In'; btn.disabled = false; }
+      if (btn) { btn.textContent = 'Sign In to Portal'; btn.disabled = false; }
     }
   }
 
   async handleRegister() {
     this.clearAuthError();
     const btn = document.getElementById('registerSubmitBtn');
-    if (btn) { btn.textContent = 'Creating…'; btn.disabled = true; }
+    if (btn) { btn.textContent = 'Creating Account...'; btn.disabled = true; }
     try {
       const role = document.getElementById('regRole').value;
       const payload = {
@@ -284,14 +299,16 @@ class SchoolApp {
           `<option value="${l.code}">${l.native_name} (${l.name})${l.deep_tested ? ' ★' : ''}</option>`
         ).join('');
       }
-    } catch (e) { console.warn('Language load failed:', e); }
+    } catch (e) {
+      console.warn('Language list load error:', e);
+    }
   }
 
   // ---------------------------------------------------------------------------
-  // POST-LOGIN SETUP
+  // ROLE & THEME BOOTSTRAP
   // ---------------------------------------------------------------------------
   applyRoleTheme(role) {
-    const p = ROLE_ACCENTS[role] || ROLE_ACCENTS.teacher;
+    const p = ROLE_ACCENTS[role] || ROLE_ACCENTS.student;
     document.documentElement.style.setProperty('--current-accent', p.accent);
     document.documentElement.style.setProperty('--current-light', p.light);
   }
@@ -300,52 +317,51 @@ class SchoolApp {
     if (!this.currentUser) return;
     const { name, role, is_verified } = this.currentUser;
 
-    // Theme
+    // Apply role-based accent
     this.applyRoleTheme(role);
 
-    // Header
+    // Update Header UI
     const nameEl = document.getElementById('headerUserName');
     const pillEl = document.getElementById('headerRolePill');
     const miniEl = document.getElementById('headerAvatarMini');
-    const logoEl = document.getElementById('headerLogo');
     if (nameEl) nameEl.textContent = name;
     if (pillEl) pillEl.textContent = role;
     if (miniEl) miniEl.textContent = name.charAt(0).toUpperCase();
-    if (logoEl) logoEl.textContent = 'XYZ';
 
-    // Chat header strip
-    const strip = document.getElementById('chatHeaderStrip');
-    const accent = ROLE_ACCENTS[role]?.accent || '#54A0FF';
-    if (strip) strip.style.background = accent;
-
-    // Avatar persona
+    // Update Avatar Persona
     if (this.avatar) this.avatar.setPersona(role);
 
-    // Staff console button visibility
+    // Toggle Staff Console for Teacher & Principal
     const staffCard = document.getElementById('staffConsoleCard');
     const isStaff = role === 'teacher' || role === 'principal';
     if (staffCard) staffCard.style.display = isStaff ? 'block' : 'none';
 
-    // Pending approval banner (unverified teacher)
+    // Unverified teacher banner
     const banner = document.getElementById('pendingApprovalBanner');
     if (banner) {
       const showBanner = role === 'teacher' && is_verified === false;
       banner.classList.toggle('hidden', !showBanner);
     }
 
-    // Reset chat
+    // Reset Chat Stream with persona greeting
     const msgContainer = document.getElementById('chatMessages');
     if (msgContainer) {
       msgContainer.innerHTML = '';
+      const greetings = {
+        student:   `Hello **${name}**! I'm here to help you check attendance, track classes, and stay on top of your studies. What can I do for you today?`,
+        parent:    `Namaste **${name}**! I'm here to help you monitor your child's attendance, review school updates, and connect with teachers whenever needed.`,
+        teacher:   `Good day, **${name}**! Ready to assist with attendance marking, roster analytics, and class inquiries for your assigned students.`,
+        principal: `Welcome, **${name}**. Executive school attendance analytics, class-wise performance reports, and the escalation audit queue are ready.`
+      };
       this.appendAiBubble({
-        response: `Hello **${name}**! I'm your XYZ AI School Assistant. How may I help you today?`
+        response: greetings[role] || `Hello **${name}**! How can I assist you with XYZ School today?`
       });
     }
 
-    // Update quick chips based on role
+    // Update role suggestion chips
     this.updateQuickChips(role);
 
-    // Refresh dashboard
+    // Render Role Dashboard
     this.refreshDashboard();
   }
 
@@ -353,13 +369,13 @@ class SchoolApp {
     const wrap = document.getElementById('quickChips');
     if (!wrap) return;
     const chips = {
-      student:   [['📊 My Attendance', "What is my attendance percentage?"], ['📞 Talk to Teacher', "I want to connect with my teacher."], ['📖 Study Tips', "Help me with homework study tips."], ['📈 Full Report', "Generate attendance report."]],
-      parent:    [['📊 Child\'s Attendance', "What is my child's attendance?"], ['📞 Contact Teacher', "I want to connect with my child's teacher."], ['📈 Monthly Report', "Generate monthly attendance report."], ['🔔 Alerts', "Any attendance alerts for my child?"]],
-      teacher:   [['✅ Mark Present', "Mark all students present for today."], ['📊 Class Analytics', "Show class attendance analytics."], ['📝 Roster', "Show today's class roster."], ['⚠️ Absentees', "Who was absent this week?"]],
-      principal: [['🏫 School Summary', "Show school-wide attendance analytics."], ['📊 Class Breakdown', "Show class-wise attendance breakdown."], ['⚠️ Low Attendance', "Which classes have low attendance?"], ['📋 Escalations', "Show recent escalation tickets."]]
+      student:   [['📊 My Attendance', "What is my attendance percentage?"], ['📞 Talk to Teacher', "I want to connect with my teacher."], ['📖 Study Tips', "Can you share effective homework study strategies?"], ['📈 Full Report', "Generate attendance report."]],
+      parent:    [['📊 Child\'s Attendance', "What is my child's attendance?"], ['📞 Contact Teacher', "I want to connect with my child's teacher."], ['📈 Monthly Report', "Generate monthly attendance report."], ['🔔 Attendance Status', "Show attendance records for this month."]],
+      teacher:   [['✅ Mark Present', "Mark all students present for today in Class 10 Section A."], ['📊 Class Analytics', "Show class attendance analytics."], ['📝 Class Roster', "Show today's class roster."], ['⚠️ Absentees', "Who was absent this week?"]],
+      principal: [['🏫 School Overview', "Show school-wide attendance analytics."], ['📊 Class Breakdown', "Show class-wise attendance breakdown."], ['⚠️ Low Attendance Alerts', "Which classes have low attendance?"], ['📋 Escalation Queue', "Show recent escalation tickets."]]
     };
     const roleChips = chips[role] || chips.student;
-    wrap.innerHTML = roleChips.map(([label, msg]) =>
+    wrap.innerHTML = `<span>Suggestions:</span>` + roleChips.map(([label, msg]) =>
       `<button class="suggestion-chip" data-msg="${msg}">${label}</button>`
     ).join('');
     wrap.querySelectorAll('.suggestion-chip[data-msg]').forEach(chip => {
@@ -374,18 +390,23 @@ class SchoolApp {
         if (action === 'chat_prompt') this.handleUserMessage(payload);
         if (action === 'approve_teacher') this.approveTeacher(payload);
       });
-    } catch (e) { console.warn('Dashboard refresh error:', e); }
+    } catch (e) {
+      console.warn('Dashboard refresh error:', e);
+    }
   }
 
   async approveTeacher(userId) {
     try {
       await ApiClient.approveTeacher(userId);
       await this.refreshDashboard();
-    } catch (e) { console.warn('Approve teacher error:', e); }
+      await this.loadTeacherApprovals();
+    } catch (e) {
+      console.warn('Approve teacher error:', e);
+    }
   }
 
   // ---------------------------------------------------------------------------
-  // CHAT
+  // CHAT INTERACTION
   // ---------------------------------------------------------------------------
   async handleUserMessage(text) {
     this.appendUserBubble(text);
@@ -403,7 +424,10 @@ class SchoolApp {
       if (result.tool_executions?.length > 0) await this.refreshDashboard();
     } catch (e) {
       this.removeTypingIndicator(typingId);
-      this.appendAiBubble({ response: e.message, security_flag: e.message.includes('Security') || e.message.includes('prohibited') });
+      this.appendAiBubble({
+        response: e.message,
+        security_flag: e.message.includes('Security') || e.message.includes('prohibited') || e.message.includes('Forbidden')
+      });
       this.avatar?.setState('idle');
     }
   }
@@ -420,7 +444,13 @@ class SchoolApp {
       this.appendAiBubble(result);
 
       if (result.tts) {
-        this.voice?.speak(result.response, result.tts.visemes || [], result.tts.duration_seconds || 2.5, result.language || this.currentLanguage, () => this.avatar?.setState('idle'));
+        this.voice?.speak(
+          result.response,
+          result.tts.visemes || [],
+          result.tts.duration_seconds || 2.5,
+          result.language || this.currentLanguage,
+          () => this.avatar?.setState('idle')
+        );
       } else {
         this.avatar?.setState('idle');
       }
@@ -434,7 +464,7 @@ class SchoolApp {
   }
 
   // ---------------------------------------------------------------------------
-  // BUBBLE RENDERING
+  // CHAT BUBBLE RENDERING & INLINE DATA CARDS
   // ---------------------------------------------------------------------------
   appendUserBubble(text) {
     const container = document.getElementById('chatMessages');
@@ -474,11 +504,11 @@ class SchoolApp {
     let toolBadgesHtml = '';
     if (data.tool_executions?.length > 0) {
       toolBadgesHtml = data.tool_executions.map(t =>
-        `<div class="tool-badge">✓ ${t.tool.replace(/_/g,' ')} <span style="opacity:0.7">(${t.result_status})</span></div>`
+        `<div class="tool-badge">✓ ${t.tool.replace(/_/g, ' ')} <span style="opacity:0.7">(${t.result_status})</span></div>`
       ).join('');
     }
 
-    // Format response text (markdown-lite)
+    // Markdown-lite formatting
     const formattedText = (data.response || '')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
@@ -486,16 +516,15 @@ class SchoolApp {
 
     bubble.innerHTML = `${toolBadgesHtml}<div>${formattedText}</div>`;
 
-    // --- Rich tool result cards ---
+    // 1. Render Inline Attendance Progress Ring Card
     if (data.tool_executions?.length > 0) {
       for (const toolExec of data.tool_executions) {
-        // Attendance result → donut card
         if (toolExec.tool === 'get_attendance' && toolExec.output) {
-          const card = this.buildAttendanceCard(toolExec.output);
+          const card = this.buildInlineAttendanceCard(toolExec.output);
           if (card) bubble.appendChild(card);
         }
 
-        // Escalation created → two-option card
+        // 2. Render Escalation Option Cards
         if (toolExec.tool === 'create_escalation' && toolExec.output) {
           const optionCard = this.buildEscalationOptionsCard();
           bubble.appendChild(optionCard);
@@ -503,111 +532,158 @@ class SchoolApp {
       }
     }
 
-    // Escalation confirmation buttons (check response text)
-    if (data.response?.includes('confirm and dispatch this request')) {
-      const confirmDiv = document.createElement('div');
-      confirmDiv.className = 'esc-confirm-card';
-      confirmDiv.innerHTML = `
-        <button class="btn btn-primary btn-sm" id="btnConfirmEsc">✓ Confirm &amp; Send</button>
-        <button class="btn btn-ghost btn-sm" id="btnCancelEsc">✕ Cancel</button>
-      `;
-      bubble.appendChild(confirmDiv);
-      confirmDiv.querySelector('#btnConfirmEsc')?.addEventListener('click', () => {
-        this.handleUserMessage('Yes, please confirm and submit this request.');
-      });
-      confirmDiv.querySelector('#btnCancelEsc')?.addEventListener('click', () => {
-        this.handleUserMessage('No, cancel this request.');
-      });
+    // 3. Proactive Escalation Trigger in Text (e.g. Dissatisfaction)
+    if (data.response?.includes('connect you with your teacher, or with school management') ||
+        data.response?.includes('Would you like me to connect you with your teacher')) {
+      const optionCard = this.buildEscalationOptionsCard();
+      bubble.appendChild(optionCard);
+    }
+
+    // 4. Escalation Confirmation Card Gate
+    if (data.response?.includes('confirm and dispatch this request') ||
+        data.response?.includes('Please confirm by replying')) {
+      const confirmCard = this.buildEscalationConfirmationCard();
+      bubble.appendChild(confirmCard);
+    }
+
+    // 5. Parent Multi-Child Disambiguation Cards
+    if (data.requires_disambiguation && this.currentUser?.linked_students) {
+      const disambigCard = this.buildDisambiguationCards(this.currentUser.linked_students);
+      bubble.appendChild(disambigCard);
     }
 
     container.appendChild(bubble);
     container.scrollTop = container.scrollHeight;
   }
 
-  buildAttendanceCard(output) {
+  // --- Inline Data Card Builders ---
+
+  buildInlineAttendanceCard(output) {
     const summary = output.summary || output;
     const pct = summary.attendance_percentage ?? 0;
     const present = summary.present_days ?? 0;
     const absent = summary.absent_days ?? 0;
     const late = summary.late_days ?? 0;
-    const total = summary.total_school_days ?? (present + absent + late);
+
+    const radius = 30;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (pct / 100) * circumference;
+    const strokeColor = pct >= 85 ? '#006b5c' : pct >= 75 ? '#8f4e00' : '#ba1a1a';
 
     const card = document.createElement('div');
-    card.className = 'att-result-card';
-
-    const canvasId = 'att-donut-' + Date.now();
+    card.className = 'att-inline-card';
     card.innerHTML = `
-      <div class="att-donut-wrap">
-        <canvas id="${canvasId}" class="att-donut-canvas" width="80" height="80"></canvas>
-        <div>
-          <div class="att-pct">${pct.toFixed(1)}%</div>
-          <div class="att-pct-label">Attendance</div>
+      <div class="att-ring-row">
+        <div class="att-ring-wrap">
+          <svg class="att-ring-svg" width="76" height="76">
+            <circle stroke="var(--surface-container-highest)" stroke-width="6" fill="transparent" r="${radius}" cx="38" cy="38"/>
+            <circle stroke="${strokeColor}" stroke-width="6" stroke-linecap="round" fill="transparent" r="${radius}" cx="38" cy="38"
+              style="stroke-dasharray:${circumference}; stroke-dashoffset:${strokeDashoffset}; transition: stroke-dashoffset 0.8s ease;"/>
+          </svg>
+          <div class="att-ring-text">${pct.toFixed(0)}%</div>
+        </div>
+        <div style="flex:1;">
+          <div style="font-family:var(--font-display);font-weight:700;font-size:1.05rem;color:var(--on-surface);">Verified Attendance</div>
+          <div style="font-size:0.75rem;color:var(--on-surface-muted);">Real-time SQL system record</div>
         </div>
       </div>
-      <div class="att-stats">
-        <div class="att-stat"><span class="att-stat-val" style="color:var(--success)">${present}</span><span class="att-stat-key">Present</span></div>
-        <div class="att-stat"><span class="att-stat-val" style="color:var(--error)">${absent}</span><span class="att-stat-key">Absent</span></div>
-        <div class="att-stat"><span class="att-stat-val" style="color:var(--warning)">${late}</span><span class="att-stat-key">Late</span></div>
+      <div class="att-counts-grid">
+        <div class="att-count-pill"><span class="num" style="color:var(--status-present);">${present}</span><span class="lbl">Present</span></div>
+        <div class="att-count-pill"><span class="num" style="color:var(--status-absent);">${absent}</span><span class="lbl">Absent</span></div>
+        <div class="att-count-pill"><span class="num" style="color:var(--status-late);">${late}</span><span class="lbl">Late</span></div>
       </div>
     `;
-
-    // Draw donut after DOM insertion
-    requestAnimationFrame(() => {
-      const canvas = document.getElementById(canvasId);
-      if (canvas && window.Chart) {
-        const accent = getComputedStyle(document.documentElement).getPropertyValue('--current-accent').trim() || '#54A0FF';
-        new window.Chart(canvas, {
-          type: 'doughnut',
-          data: {
-            datasets: [{
-              data: [present, absent, late],
-              backgroundColor: [accent, '#ffdad6', '#ffdcc2'],
-              borderWidth: 0,
-              hoverOffset: 4
-            }]
-          },
-          options: {
-            cutout: '72%',
-            plugins: { legend: { display: false }, tooltip: { enabled: false } },
-            animation: { duration: 600, easing: 'easeInOutQuart' }
-          }
-        });
-      }
-    });
-
     return card;
   }
 
   buildEscalationOptionsCard() {
     const wrap = document.createElement('div');
-    wrap.className = 'escalation-options';
+    wrap.className = 'escalation-options-container';
     wrap.innerHTML = `
-      <button class="esc-option-card" data-choice="teacher">
-        <span class="esc-option-icon">👩‍🏫</span>
-        <div class="esc-option-text">
-          <strong>Talk to Teacher</strong>
-          <span>Connect directly with your class teacher</span>
+      <button class="esc-choice-card" data-choice="teacher">
+        <span class="icon">👩‍🏫</span>
+        <div>
+          <span class="title">Talk to Teacher</span>
+          <span class="desc">Connect directly with the class teacher</span>
         </div>
       </button>
-      <button class="esc-option-card" data-choice="management">
-        <span class="esc-option-icon">🏫</span>
-        <div class="esc-option-text">
-          <strong>Contact School Management</strong>
-          <span>Escalate to the principal's office</span>
+      <button class="esc-choice-card" data-choice="management">
+        <span class="icon">🏫</span>
+        <div>
+          <span class="title">Contact School Management</span>
+          <span class="desc">Escalate inquiry to the Principal's office</span>
         </div>
       </button>
     `;
-    wrap.querySelectorAll('.esc-option-card').forEach(btn => {
+
+    wrap.querySelectorAll('.esc-choice-card').forEach(btn => {
       btn.addEventListener('click', () => {
         const choice = btn.getAttribute('data-choice');
         this.handleUserMessage(
           choice === 'teacher'
-            ? "Yes, please connect me with my teacher."
-            : "Yes, please contact school management."
+            ? "I want to connect with my teacher regarding questions."
+            : "I want to contact school management."
         );
-        // Disable options after pick
-        wrap.querySelectorAll('.esc-option-card').forEach(b => b.disabled = true);
+        wrap.querySelectorAll('.esc-choice-card').forEach(b => b.disabled = true);
       });
+    });
+    return wrap;
+  }
+
+  buildEscalationConfirmationCard() {
+    const box = document.createElement('div');
+    box.className = 'esc-confirm-box';
+    box.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-weight:600;font-size:0.875rem;color:var(--on-surface);">Escalation Request</span>
+        <span class="esc-badge-pending">Status: Pending</span>
+      </div>
+      <div style="font-size:0.8125rem;color:var(--on-surface-muted);">
+        A confirmation is required before this request is formally dispatched to school staff.
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary btn-sm" id="btnConfirmEscAction">✓ Confirm &amp; Dispatch</button>
+        <button class="btn btn-ghost btn-sm" id="btnCancelEscAction">✕ Cancel</button>
+      </div>
+    `;
+
+    box.querySelector('#btnConfirmEscAction')?.addEventListener('click', () => {
+      this.handleUserMessage("Yes, please confirm and submit this request.");
+      box.querySelector('.esc-badge-pending').className = 'esc-badge-confirmed';
+      box.querySelector('.esc-badge-confirmed').textContent = 'Status: Confirmed';
+      box.querySelectorAll('button').forEach(b => b.disabled = true);
+    });
+
+    box.querySelector('#btnCancelEscAction')?.addEventListener('click', () => {
+      this.handleUserMessage("No, cancel this request.");
+      box.querySelectorAll('button').forEach(b => b.disabled = true);
+    });
+
+    return box;
+  }
+
+  buildDisambiguationCards(kids) {
+    const wrap = document.createElement('div');
+    wrap.style.display = 'flex';
+    wrap.style.flexDirection = 'column';
+    wrap.style.gap = '8px';
+    wrap.style.marginTop = '10px';
+
+    kids.forEach(k => {
+      const btn = document.createElement('button');
+      btn.className = 'child-profile-card';
+      btn.innerHTML = `
+        <div class="child-photo-circle">${(k.name || 'C').charAt(0)}</div>
+        <div style="text-align:left;">
+          <div class="child-meta-name">${k.name}</div>
+          <div class="child-meta-class">Class ${k.class_name}-${k.section} · Roll ${k.roll_no}</div>
+        </div>
+      `;
+      btn.addEventListener('click', () => {
+        this.handleUserMessage(`Check attendance for ${k.name}`);
+        wrap.querySelectorAll('button').forEach(b => b.disabled = true);
+      });
+      wrap.appendChild(btn);
     });
     return wrap;
   }
@@ -628,29 +704,29 @@ class SchoolApp {
     if (!modal) return;
     modal.classList.add('active');
 
-    // Load audit logs
+    // Load Audit Logs
     const tableBody = document.getElementById('auditLogTableBody');
     if (tableBody) {
-      tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--on-surface-muted);">Loading…</td></tr>';
+      tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--on-surface-muted);">Loading audit logs...</td></tr>';
       try {
         const logs = await ApiClient.getAuditLogs(25);
         tableBody.innerHTML = logs.map(l => `
-          <tr>
-            <td><small>${l.timestamp.split('T')[1]?.slice(0, 8) || ''}</small></td>
-            <td><strong>${l.user_name || '–'}</strong></td>
-            <td><code style="font-size:0.72rem;background:var(--surface-low);padding:2px 6px;border-radius:4px;">${l.action}</code></td>
-            <td><span class="chip ${l.result === 'allowed' ? 'chip-present' : 'chip-absent'}">${l.result}</span></td>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px 6px;"><small>${l.timestamp.split('T')[1]?.slice(0, 8) || ''}</small></td>
+            <td style="padding:8px 6px;"><strong>${l.user_name || '–'}</strong></td>
+            <td style="padding:8px 6px;"><code style="font-size:0.75rem;background:var(--surface-container-low);padding:2px 6px;border-radius:4px;">${l.action}</code></td>
+            <td style="padding:8px 6px;"><span class="chip ${l.result === 'allowed' ? 'chip-present' : 'chip-absent'}">${l.result}</span></td>
           </tr>
         `).join('');
       } catch (e) {
-        tableBody.innerHTML = `<tr><td colspan="4" style="color:var(--error);">Error: ${e.message}</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="4" style="color:var(--status-absent);padding:12px;">Error: ${e.message}</td></tr>`;
       }
     }
 
-    // Load teacher approvals
+    // Load Teacher Approvals
     await this.loadTeacherApprovals();
 
-    // Bind attack demo buttons
+    // Red-team attack demo buttons
     document.querySelectorAll('.btn-run-attack').forEach(btn => {
       btn.onclick = () => {
         this.closeStaffConsole();
@@ -666,14 +742,15 @@ class SchoolApp {
       const data = await ApiClient.getDashboard();
       const pending = data.pending_teacher_approvals || [];
       if (pending.length === 0) {
-        container.innerHTML = '<p style="font-size:0.82rem;color:var(--on-surface-muted);">No pending teacher approvals.</p>';
+        container.innerHTML = '<p style="font-size:0.875rem;color:var(--on-surface-muted);">No pending teacher approval requests.</p>';
         return;
       }
       container.innerHTML = pending.map(t => `
-        <div class="approval-card" id="approval-${t.user_id}">
-          <div class="approval-info">
-            <div class="approval-name">📚 ${t.name}</div>
-            <div class="approval-email">${t.email}</div>
+        <div class="roster-item" id="approval-${t.user_id}" style="margin-bottom:8px;">
+          <div class="roster-avatar-circle">📚</div>
+          <div class="roster-student-info">
+            <div class="name">${t.name}</div>
+            <div class="roll">${t.email}</div>
           </div>
           <button class="btn btn-primary btn-sm" onclick="window.app.approveTeacher('${t.user_id}').then(()=>{ document.getElementById('approval-${t.user_id}').remove(); })">
             Approve
@@ -681,7 +758,7 @@ class SchoolApp {
         </div>
       `).join('');
     } catch (e) {
-      container.innerHTML = '<p style="color:var(--error);font-size:0.82rem;">Could not load approvals.</p>';
+      container.innerHTML = '<p style="color:var(--status-absent);font-size:0.875rem;">Unable to load approvals.</p>';
     }
   }
 

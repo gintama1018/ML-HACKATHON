@@ -1,39 +1,43 @@
-// Role-based avatar persona color palettes
+// Role-based avatar persona color palettes (strictly matched to DESIGN.MD Warm Academic Humanism)
 const AVATAR_PERSONAS = {
   student: {
     label: 'Student',
-    background: '#dbeafe',  // light blue
+    accent: '#FF9F43',
+    background: '#fff3e0', // soft warm orange tint
     face: '#fef3c7',        // warm skin
-    hair: '#2563eb',        // blue cap
-    blush: 'rgba(251,113,133,0.40)',
-    mouth: '#e11d48',
+    hair: '#e67e22',        // warm orange cap/hair
+    blush: 'rgba(255,159,67,0.40)',
+    mouth: '#d35400',
     statusIdleText: 'Ready to help you learn!'
   },
   parent: {
     label: 'Parent',
-    background: '#fef3c7',  // warm amber
+    accent: '#58B19F',
+    background: '#e6f7f3', // soft green tint
     face: '#fed7aa',        // slightly deeper skin
-    hair: '#92400e',        // brown hair
-    blush: 'rgba(251,146,60,0.35)',
-    mouth: '#b45309',
+    hair: '#2c7a6b',        // soft deep green/brown
+    blush: 'rgba(88,177,159,0.35)',
+    mouth: '#218272',
     statusIdleText: 'Here for your family\'s needs'
   },
   teacher: {
     label: 'Teacher',
-    background: '#d1fae5',  // soft green
+    accent: '#54A0FF',
+    background: '#edf5ff', // approachable soft blue tint
     face: '#fef3c7',
-    hair: '#1e293b',        // formal dark
-    blush: 'rgba(52,211,153,0.30)',
-    mouth: '#065f46',
+    hair: '#2e66b8',        // professional navy-blue
+    blush: 'rgba(84,160,255,0.30)',
+    mouth: '#1b4f9b',
     statusIdleText: 'Ready to assist your class'
   },
   principal: {
     label: 'Principal',
-    background: '#ede9fe',  // soft indigo
+    accent: '#2C3E50',
+    background: '#f1eee7', // formal warm neutral
     face: '#fef3c7',
-    hair: '#3b0764',        // authoritative dark purple
-    blush: 'rgba(139,92,246,0.25)',
-    mouth: '#4c1d95',
+    hair: '#2C3E50',        // formal dark navy
+    blush: 'rgba(44,62,80,0.25)',
+    mouth: '#1c2833',
     statusIdleText: 'School analytics at your command'
   }
 };
@@ -66,7 +70,7 @@ export class AvatarRenderer {
 
   initBlinkTimer() {
     const scheduleBlink = () => {
-      const delay = 3000 + Math.random() * 3000;
+      const delay = 3000 + Math.random() * 3500;
       setTimeout(() => {
         this.triggerBlink();
         scheduleBlink();
@@ -160,63 +164,71 @@ export class AvatarRenderer {
 
     const p = this.persona || AVATAR_PERSONAS.student;
 
+    // Outer subtle border ring
+    ctx.strokeStyle = p.accent;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 25, 0, Math.PI * 2);
+    ctx.stroke();
+
     // Role-specific circular background
     ctx.fillStyle = p.background;
     ctx.beginPath();
-    ctx.arc(cx, cy, 30, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 24, 0, Math.PI * 2);
     ctx.fill();
 
     // Friendly Face Base
     ctx.fillStyle = p.face;
     ctx.beginPath();
-    ctx.arc(cx, cy, 20, 0, Math.PI * 2);
+    ctx.arc(cx, cy + 1, 16, 0, Math.PI * 2);
     ctx.fill();
 
     // Role-specific Hair / Cap
     ctx.fillStyle = p.hair;
     ctx.beginPath();
-    ctx.arc(cx, cy - 10, 16, Math.PI * 0.9, Math.PI * 2.1);
+    ctx.arc(cx, cy - 7, 13, Math.PI * 0.9, Math.PI * 2.1);
     ctx.fill();
 
-    // Eyes
-    const eyeSpacing = 7;
-    const eyeY = cy - 2;
-    const eyeH = Math.max(0.5, 3.5 * (1 - this.blinkProgress));
+    // Eyes (with gentle blink curve)
+    const eyeSpacing = 6;
+    const eyeY = cy;
+    const eyeH = Math.max(0.5, 3 * (1 - this.blinkProgress));
 
-    ctx.fillStyle = '#1e293b';
+    ctx.fillStyle = '#2C3E50';
     ctx.beginPath();
-    ctx.ellipse(cx - eyeSpacing, eyeY, 2.5, eyeH, 0, 0, Math.PI * 2);
-    ctx.ellipse(cx + eyeSpacing, eyeY, 2.5, eyeH, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx - eyeSpacing, eyeY, 2, eyeH, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx + eyeSpacing, eyeY, 2, eyeH, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Soft Blush (role-tinted)
+    // Soft Blush (warm and empathetic)
     ctx.fillStyle = p.blush;
     ctx.beginPath();
-    ctx.arc(cx - 10, cy + 5, 3, 0, Math.PI * 2);
-    ctx.arc(cx + 10, cy + 5, 3, 0, Math.PI * 2);
+    ctx.arc(cx - 8, cy + 6, 2.5, 0, Math.PI * 2);
+    ctx.arc(cx + 8, cy + 6, 2.5, 0, Math.PI * 2);
     ctx.fill();
 
-    // Mouth Viseme
+    // Mouth Viseme / Friendly smile
     const mouthY = cy + 9;
     ctx.strokeStyle = p.mouth;
     ctx.fillStyle = p.mouth;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.6;
+    ctx.lineCap = 'round';
 
     ctx.beginPath();
     if (this.currentViseme === 'rest') {
-      ctx.arc(cx, mouthY - 2, 4, 0.2 * Math.PI, 0.8 * Math.PI, false);
+      ctx.arc(cx, mouthY - 2, 3.5, 0.2 * Math.PI, 0.8 * Math.PI, false);
       ctx.stroke();
     } else if (this.currentViseme === 'aa') {
-      ctx.ellipse(cx, mouthY, 4, 5, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, mouthY, 3.5, 4.5, 0, 0, Math.PI * 2);
       ctx.fill();
     } else if (this.currentViseme === 'ee') {
-      ctx.ellipse(cx, mouthY - 1, 6, 2.5, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, mouthY - 1, 5, 2, 0, 0, Math.PI * 2);
       ctx.fill();
     } else if (this.currentViseme === 'oo') {
-      ctx.ellipse(cx, mouthY, 3, 3.5, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, mouthY, 2.5, 3, 0, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      ctx.ellipse(cx, mouthY - 1, 5, 2, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, mouthY - 1, 4, 1.8, 0, 0, Math.PI * 2);
       ctx.fill();
     }
   }
