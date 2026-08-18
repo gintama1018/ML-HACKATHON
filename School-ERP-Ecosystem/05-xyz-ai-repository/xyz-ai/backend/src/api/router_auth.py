@@ -8,6 +8,7 @@ from src.models import User, Student, ParentStudentLink, UserRole
 from src.auth.auth_service import login_user, hash_password, build_user_response
 from src.auth.dependencies import get_current_user
 from src.auth.jwt_handler import create_access_token
+from src.auth.otp_service import create_and_send_otp, verify_otp_code
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -15,12 +16,23 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class SendOTPRequest(BaseModel):
+    email: str
+    name: Optional[str] = "User"
+    purpose: Optional[str] = "registration"
+
+class VerifyOTPRequest(BaseModel):
+    email: str
+    otp_code: str
+    purpose: Optional[str] = "registration"
+
 class RegisterRequest(BaseModel):
     name: str
     email: str
     password: str
     role: str  # "student" | "parent" | "teacher" — NOT "principal"
     language_pref: Optional[str] = "en"
+    otp_code: Optional[str] = None
     # Student-specific
     class_name: Optional[str] = None
     section: Optional[str] = None
@@ -33,6 +45,25 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate user with email and password, returns signed JWT and role profile."""
     return login_user(db, req.email, req.password)
 
+@router.post("/send-otp")
+def send_otp(req: SendOTPRequest, db: Session = Depends(get_db)):
+    """Generate and dispatch a 6-digit OTP code to the provided email."""
+    # If for registration, check if account already exists
+    if req.purpose == "registration":
+        existing = db.query(User).filter(User.email == req.email.strip().lower()).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this email already exists."
+            )
+    return create_and_send_otp(db, req.email, req.name, req.purpose)
+
+@router.post("/verify-otp")
+def verify_otp(req: VerifyOTPRequest, db: Session = Depends(get_db)):
+    """Verify an active 6-digit OTP code."""
+    is_valid = verify_otp_code(db, req.email, req.otp_code, req.purpose)
+    return {"status": "verified", "email": req.email, "message": "Email verified successfully."}
+
 @router.post("/register", status_code=201)
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
     """Self-service registration for students, parents, and teachers (NOT principal)."""
@@ -44,12 +75,17 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
         )
 
     # --- Check duplicate email ---
-    existing = db.query(User).filter(User.email == req.email).first()
+    clean_email = req.email.strip().lower()
+    existing = db.query(User).filter(User.email == clean_email).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with this email already exists."
         )
+
+    # --- Verify OTP if provided ---
+    if req.otp_code:
+        verify_otp_code(db, clean_email, req.otp_code, purpose="registration")
 
     # --- Role-specific validation ---
     if req.role == "student":
@@ -65,7 +101,7 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
                 detail="Parents must provide child_email to link to their child's account."
             )
         child_user = db.query(User).filter(
-            User.email == req.child_email,
+            User.email == req.child_email.strip().lower(),
             User.role == "student"
         ).first()
         if not child_user or not child_user.student_profile:
@@ -78,15 +114,15 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
     is_verified = req.role != "teacher"  # Teachers require principal approval
     new_user = User(
         id=str(uuid.uuid4()),
-        name=req.name,
-        email=req.email,
+        name=req.name.strip(),
+        email=clean_email,
         role=req.role,
         password_hash=hash_password(req.password),
         language_pref=req.language_pref or "en",
         is_verified=is_verified
     )
     db.add(new_user)
-    db.flush()  # Get the user ID
+    db.flush()
 
     # --- Role-specific profile creation ---
     if req.role == "student":
@@ -101,7 +137,6 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
         db.flush()
 
     elif req.role == "parent":
-        # child_user and child_user.student_profile already validated above
         link = ParentStudentLink(
             id=str(uuid.uuid4()),
             parent_id=new_user.id,

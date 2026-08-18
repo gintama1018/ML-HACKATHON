@@ -78,7 +78,18 @@
         </div>
         <div class="auth-input-group">
           <label class="auth-input-label">Email Address</label>
-          <input class="auth-text-field" id="regEmail" type="email" placeholder="you@xyzschool.edu" required>
+          <div style="display:flex;gap:8px;">
+            <input class="auth-text-field" id="regEmail" type="email" placeholder="you@xyzschool.edu" required style="flex:1;">
+            <button type="button" class="auth-primary-btn" id="btnSendOtp" style="width:auto;padding:0 14px;font-size:0.8125rem;white-space:nowrap;">Get OTP</button>
+          </div>
+          <div id="otpStatusMsg" style="font-size:0.75rem;margin-top:4px;color:var(--text-muted);"></div>
+        </div>
+        <div class="auth-input-group hidden" id="regOtpField">
+          <label class="auth-input-label">6-Digit Email OTP</label>
+          <div style="display:flex;gap:8px;">
+            <input class="auth-text-field" id="regOtpCode" type="text" placeholder="123456" maxlength="6" style="letter-spacing:4px;font-weight:700;flex:1;">
+            <button type="button" class="auth-primary-btn" id="btnVerifyOtp" style="width:auto;padding:0 14px;font-size:0.8125rem;background:#147B5D;">Verify</button>
+          </div>
         </div>
         <div class="auth-input-group">
           <label class="auth-input-label">Password</label>

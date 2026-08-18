@@ -201,3 +201,14 @@ class AuditLog(Base):
     
     # Relationships
     user = relationship("User", back_populates="audit_logs")
+
+class EmailOTP(Base):
+    __tablename__ = "email_otps"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = Column(String(100), nullable=False, index=True)
+    otp_code = Column(String(6), nullable=False)
+    purpose = Column(String(50), default="registration", nullable=False)
+    is_used = Column(Boolean, default=False, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)

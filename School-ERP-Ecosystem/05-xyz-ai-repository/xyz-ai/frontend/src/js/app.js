@@ -140,11 +140,74 @@ class SchoolApp {
       document.getElementById('authRoleGrid').classList.remove('hidden');
     });
 
-    // 6. Dynamic registration fields
+    // 6. Dynamic registration fields & OTP Handlers
     document.getElementById('regRole')?.addEventListener('change', (e) => {
       const role = e.target.value;
       document.getElementById('regStudentFields')?.classList.toggle('hidden', role !== 'student');
       document.getElementById('regParentFields')?.classList.toggle('hidden', role !== 'parent');
+    });
+
+    // Send OTP Button
+    document.getElementById('btnSendOtp')?.addEventListener('click', async () => {
+      const email = document.getElementById('regEmail')?.value.trim();
+      const name = document.getElementById('regName')?.value.trim() || 'User';
+      const msgEl = document.getElementById('otpStatusMsg');
+      const btn = document.getElementById('btnSendOtp');
+      if (!email) {
+        alert('Please enter your email address first.');
+        return;
+      }
+      if (btn) { btn.textContent = 'Sending...'; btn.disabled = true; }
+      try {
+        const res = await ApiClient.sendOTP(email, name);
+        document.getElementById('regOtpField')?.classList.remove('hidden');
+        if (msgEl) {
+          msgEl.style.color = '#147B5D';
+          msgEl.textContent = res.message || 'OTP sent! Please check your email inbox.';
+          if (res.dev_hint) {
+            msgEl.textContent += ` (Dev Hint: ${res.dev_hint})`;
+          }
+        }
+      } catch (err) {
+        if (msgEl) {
+          msgEl.style.color = '#BA1A1A';
+          msgEl.textContent = err.message || 'Failed to send OTP.';
+        }
+      } finally {
+        if (btn) { btn.textContent = 'Resend OTP'; btn.disabled = false; }
+      }
+    });
+
+    // Verify OTP Button
+    document.getElementById('btnVerifyOtp')?.addEventListener('click', async () => {
+      const email = document.getElementById('regEmail')?.value.trim();
+      const otpCode = document.getElementById('regOtpCode')?.value.trim();
+      const msgEl = document.getElementById('otpStatusMsg');
+      const btn = document.getElementById('btnVerifyOtp');
+      if (!otpCode || otpCode.length !== 6) {
+        alert('Please enter the 6-digit OTP received on your email.');
+        return;
+      }
+      if (btn) { btn.textContent = 'Verifying...'; btn.disabled = true; }
+      try {
+        await ApiClient.verifyOTP(email, otpCode);
+        if (msgEl) {
+          msgEl.style.color = '#147B5D';
+          msgEl.textContent = '✅ Email verified successfully!';
+        }
+        if (btn) {
+          btn.textContent = '✓ Verified';
+          btn.style.background = '#147B5D';
+          btn.disabled = true;
+        }
+        this.verifiedOtpCode = otpCode;
+      } catch (err) {
+        if (msgEl) {
+          msgEl.style.color = '#BA1A1A';
+          msgEl.textContent = err.message || 'Invalid or expired OTP.';
+        }
+        if (btn) { btn.textContent = 'Verify'; btn.disabled = false; }
+      }
     });
 
     // 7. Modals: Switch Role & Logout
@@ -261,7 +324,8 @@ class SchoolApp {
         email: document.getElementById('regEmail').value.trim(),
         password: document.getElementById('regPassword').value,
         role,
-        language_pref: this.currentLanguage || 'en'
+        language_pref: this.currentLanguage || 'en',
+        otp_code: this.verifiedOtpCode || undefined
       };
       if (role === 'student') {
         payload.class_name = document.getElementById('regClass').value;

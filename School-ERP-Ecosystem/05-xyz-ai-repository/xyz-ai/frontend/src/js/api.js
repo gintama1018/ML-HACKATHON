@@ -50,6 +50,32 @@ export class ApiClient {
     return data;
   }
 
+  static async sendOTP(email, name = 'User', purpose = 'registration') {
+    const res = await fetch(`${API_BASE}/auth/send-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, name, purpose })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to send OTP');
+    }
+    return res.json();
+  }
+
+  static async verifyOTP(email, otp_code, purpose = 'registration') {
+    const res = await fetch(`${API_BASE}/auth/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, otp_code, purpose })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Invalid or expired OTP');
+    }
+    return res.json();
+  }
+
   static async getMe() {
     const res = await fetch(`${API_BASE}/auth/me`, { headers: this.getHeaders() });
     if (!res.ok) throw new Error('Failed to fetch profile');
