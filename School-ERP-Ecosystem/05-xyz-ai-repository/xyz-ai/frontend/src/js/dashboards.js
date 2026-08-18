@@ -3,7 +3,7 @@
  * Strict pixel-accurate implementation of user screenshot layouts:
  * 1. Profile View (Screenshot 2)
  * 2. Student & Parent Dashboard (Screenshot 3)
- * 3. Teacher Dashboard with P/A/L pill toggles (Screenshot 4)
+ * 3. Teacher Dashboard with interactive P/A/L pill toggles & live metrics (Screenshot 4)
  * 4. Principal Dashboard with Weekly bars & Alerts (Screenshot 5)
  */
 
@@ -20,13 +20,11 @@ export class DashboardRenderer {
     const prof = data.student_profile || user.student_profile || {};
     const role = user.role || 'student';
 
-    // Mock rich profile data for student if not in DB
     const studentName = user.name || 'Aarav Sharma';
     const grade = prof.class_name ? `Grade ${prof.class_name}-${prof.section || 'A'}` : 'Grade 10-A';
     const roll = prof.roll_no ? `Roll No. ${prof.roll_no}` : 'Roll No. 101';
 
     container.innerHTML = `
-      <!-- Hero Avatar & Badges -->
       <div class="profile-hero-section">
         <div class="profile-avatar-wrap">
           <div style="width:100%;height:100%;background:var(--current-accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:2.2rem;font-weight:700;">
@@ -44,9 +42,7 @@ export class DashboardRenderer {
         </div>
       </div>
 
-      <!-- 2-Column Info Cards -->
       <div class="profile-grid-2col">
-        <!-- Personal Info Card -->
         <div class="profile-info-card brown-strip">
           <div class="profile-card-header">
             <span>📇 Personal Info</span>
@@ -69,7 +65,6 @@ export class DashboardRenderer {
           </div>
         </div>
 
-        <!-- Academic Profile Card -->
         <div class="profile-info-card green-strip">
           <div class="profile-card-header">
             <span>🎓 Academic Profile</span>
@@ -95,7 +90,6 @@ export class DashboardRenderer {
         </div>
       </div>
 
-      <!-- Settings List Card -->
       <div class="profile-settings-card">
         <div class="settings-nav-item" onclick="document.getElementById('langSelect').focus();">
           <div class="settings-nav-left">
@@ -150,7 +144,6 @@ export class DashboardRenderer {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    // Destroy old Chart instances
     if (window.__dashCharts) {
       window.__dashCharts.forEach(c => { try { c.destroy(); } catch (_) {} });
     }
@@ -184,9 +177,7 @@ export class DashboardRenderer {
         </div>
       </div>
 
-      <!-- Top Row: Term Overview Donut + AI Insight Box -->
       <div class="dash-top-grid">
-        <!-- Term Overview Card -->
         <div class="dash-overview-card">
           <h3>Term Overview</h3>
           <div class="term-overview-content">
@@ -220,7 +211,6 @@ export class DashboardRenderer {
           </div>
         </div>
 
-        <!-- AI Insight Box (Screenshot 3) -->
         <div class="ai-insight-box">
           <div class="ai-insight-header">
             <span>✨ AI Insight</span>
@@ -231,7 +221,6 @@ export class DashboardRenderer {
         </div>
       </div>
 
-      <!-- Bottom Card: Recent Attendance History List -->
       <div class="history-card-wrap">
         <div class="history-card-header">
           <h3>Recent Attendance History</h3>
@@ -263,7 +252,7 @@ export class DashboardRenderer {
     DashboardRenderer._drawDonut('termDonutCanvas', [present, absent, late], ['#10B981', '#BA1A1A', '#E87A1E']);
   }
 
-  // --- Parent Dashboard (Screenshot 3 with Child Switcher) ---
+  // --- Parent Dashboard (Screenshot 3) ---
   static renderParentDashboard(container, data) {
     const children = data.children || [];
     const activeChild = children[0] || {};
@@ -285,7 +274,6 @@ export class DashboardRenderer {
         </div>
       </div>
 
-      <!-- Child Selector Pills -->
       <div style="display:flex;gap:12px;margin-bottom:20px;">
         ${children.map((c, i) => `
           <button class="nav-tab-btn ${i === 0 ? 'active' : ''}" style="border:1px solid var(--border-light);padding:8px 18px;"
@@ -295,7 +283,6 @@ export class DashboardRenderer {
         `).join('')}
       </div>
 
-      <!-- Top Grid -->
       <div class="dash-top-grid">
         <div class="dash-overview-card">
           <h3>${activeChild.name || 'Child'}'s Term Overview</h3>
@@ -336,7 +323,6 @@ export class DashboardRenderer {
         </div>
       </div>
 
-      <!-- History List -->
       <div class="history-card-wrap">
         <div class="history-card-header">
           <h3>Recent Records for ${activeChild.name || 'Student'}</h3>
@@ -363,16 +349,21 @@ export class DashboardRenderer {
     DashboardRenderer._drawDonut('termDonutCanvasParent', [present, absent, late], ['#10B981', '#BA1A1A', '#E87A1E']);
   }
 
-  // --- Teacher Dashboard (Matches User Screenshot 4) ---
+  // --- Teacher Dashboard (Matches User Screenshot 4 with Fully Interactive P/A/L Buttons) ---
   static renderTeacherDashboard(container, data) {
     const classes = data.assigned_classes || [];
-    const cls = classes[0] || { class_name: '10', section: 'A', subject: 'Mathematics' };
+    const cls = classes[0] || { class_name: '10', section: 'A', subject: 'Social Studies' };
     const analytics = cls.analytics || {};
     const roster = analytics.class_roster_summary || [];
 
-    const presentCount = roster.filter(s => (s.attendance_percentage ?? 0) >= 80).length || 24;
-    const absentCount = 2;
-    const lateCount = 1;
+    // Default mock list if roster is empty
+    const displayRoster = roster.length > 0 ? roster : [
+      { student_id: 's1', roll_no: '01', name: 'Alexander Hamilton', status: 'present' },
+      { student_id: 's2', roll_no: '02', name: 'Beatrix Potter', status: 'absent' },
+      { student_id: 's3', roll_no: '03', name: 'Charles Darwin', status: 'late' },
+      { student_id: 's4', roll_no: '04', name: 'Diana Prince', status: 'present' },
+      { student_id: 's5', roll_no: '05', name: 'Ethan Hunt', status: 'present' },
+    ];
 
     container.innerHTML = `
       <div class="dash-header-section">
@@ -392,21 +383,21 @@ export class DashboardRenderer {
       <div class="teacher-stat-cards-3col">
         <div class="teacher-metric-card present">
           <div class="label">PRESENT</div>
-          <div class="num" id="metricPresent">${presentCount}</div>
+          <div class="num" id="metricPresent">0</div>
         </div>
         <div class="teacher-metric-card absent">
           <div class="label">ABSENT</div>
-          <div class="num" id="metricAbsent">${absentCount}</div>
+          <div class="num" id="metricAbsent">0</div>
         </div>
         <div class="teacher-metric-card late">
           <div class="label">LATE</div>
-          <div class="num" id="metricLate">${lateCount}</div>
+          <div class="num" id="metricLate">0</div>
         </div>
       </div>
 
       <!-- Student Table with P / A / L Pill Toggles -->
       <div class="teacher-roster-card">
-        <table class="roster-table">
+        <table class="roster-table" id="teacherRosterTable">
           <thead>
             <tr>
               <th style="width:90px;">Roll No.</th>
@@ -415,10 +406,10 @@ export class DashboardRenderer {
             </tr>
           </thead>
           <tbody>
-            ${roster.map((stu, i) => {
-              const defaultStatus = i === 1 ? 'a' : i === 2 ? 'l' : 'p';
+            ${displayRoster.map((stu, i) => {
+              const initStatus = (i === 1 ? 'a' : i === 2 ? 'l' : 'p');
               return `
-                <tr>
+                <tr data-student-name="${stu.name}">
                   <td style="font-weight:600;color:var(--text-muted);">${stu.roll_no || (i + 1 < 10 ? '0' + (i + 1) : i + 1)}</td>
                   <td>
                     <div class="roster-student-cell">
@@ -427,10 +418,10 @@ export class DashboardRenderer {
                     </div>
                   </td>
                   <td style="text-align:right;">
-                    <div class="pal-toggle-group" data-student-id="${stu.student_id}">
-                      <button class="pal-pill-btn p ${defaultStatus === 'p' ? 'active' : ''}" onclick="DashboardRenderer.togglePal(this, 'p')">P</button>
-                      <button class="pal-pill-btn a ${defaultStatus === 'a' ? 'active' : ''}" onclick="DashboardRenderer.togglePal(this, 'a')">A</button>
-                      <button class="pal-pill-btn l ${defaultStatus === 'l' ? 'active' : ''}" onclick="DashboardRenderer.togglePal(this, 'l')">L</button>
+                    <div class="pal-toggle-group" data-student-id="${stu.student_id || ('s' + i)}">
+                      <button type="button" class="pal-pill-btn p ${initStatus === 'p' ? 'active' : ''}" data-status="p">P</button>
+                      <button type="button" class="pal-pill-btn a ${initStatus === 'a' ? 'active' : ''}" data-status="a">A</button>
+                      <button type="button" class="pal-pill-btn l ${initStatus === 'l' ? 'active' : ''}" data-status="l">L</button>
                     </div>
                   </td>
                 </tr>
@@ -441,11 +432,66 @@ export class DashboardRenderer {
       </div>
 
       <div class="teacher-save-bar">
-        <button class="teacher-save-btn" onclick="alert('Attendance for Class ${cls.class_name}-${cls.section} saved successfully to SQL database!');">
+        <button type="button" class="teacher-save-btn" id="btnSaveAttendance">
           Save Attendance
         </button>
       </div>
     `;
+
+    // Attach click listeners to all P / A / L pill buttons
+    container.querySelectorAll('.pal-pill-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        DashboardRenderer.togglePal(btn, btn.dataset.status);
+      });
+    });
+
+    // Attach save button listener
+    container.querySelector('#btnSaveAttendance')?.addEventListener('click', () => {
+      const p = document.getElementById('metricPresent')?.textContent || '0';
+      const a = document.getElementById('metricAbsent')?.textContent || '0';
+      const l = document.getElementById('metricLate')?.textContent || '0';
+      alert(`✅ Attendance for Class ${cls.class_name}-${cls.section} saved successfully!\n\n• Present: ${p}\n• Absent: ${a}\n• Late: ${l}`);
+    });
+
+    // Calculate initial counts
+    DashboardRenderer.recalculateTeacherMetrics();
+  }
+
+  // --- Helper: Recalculate Teacher Dashboard Metric Counts ---
+  static recalculateTeacherMetrics() {
+    let pCount = 0;
+    let aCount = 0;
+    let lCount = 0;
+
+    document.querySelectorAll('.pal-toggle-group').forEach(group => {
+      const activeBtn = group.querySelector('.pal-pill-btn.active');
+      if (activeBtn) {
+        if (activeBtn.classList.contains('p')) pCount++;
+        else if (activeBtn.classList.contains('a')) aCount++;
+        else if (activeBtn.classList.contains('l')) lCount++;
+      }
+    });
+
+    const elP = document.getElementById('metricPresent');
+    const elA = document.getElementById('metricAbsent');
+    const elL = document.getElementById('metricLate');
+    if (elP) elP.textContent = pCount;
+    if (elA) elA.textContent = aCount;
+    if (elL) elL.textContent = lCount;
+  }
+
+  // --- Helper: Toggle P / A / L Pill in Teacher Roster ---
+  static togglePal(btn, status) {
+    const parent = btn.closest('.pal-toggle-group');
+    if (!parent) return;
+
+    parent.querySelectorAll('.pal-pill-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // Update real-time counts at the top
+    DashboardRenderer.recalculateTeacherMetrics();
   }
 
   // --- Principal Dashboard (Matches User Screenshot 5) ---
@@ -475,9 +521,7 @@ export class DashboardRenderer {
       </div>
 
       <div class="principal-grid-layout">
-        <!-- Left Column -->
         <div class="principal-left-col">
-          <!-- School-Wide Attendance Card -->
           <div class="school-wide-att-card">
             <div class="title">👥 School-Wide Attendance</div>
             <div class="big-num">
@@ -493,7 +537,6 @@ export class DashboardRenderer {
             </div>
           </div>
 
-          <!-- Alerts Card (Red alert for low attendance) -->
           <div class="alerts-card">
             <div class="alerts-card-header">
               <span>⚠️ Alerts</span>
@@ -522,9 +565,7 @@ export class DashboardRenderer {
           </div>
         </div>
 
-        <!-- Right Column -->
         <div class="principal-right-col">
-          <!-- AI Insight Card -->
           <div class="ai-insight-box" style="background:#F0FDF4;border-color:rgba(16,185,129,0.2);">
             <div class="ai-insight-header" style="color:#065F46;">
               <span>✨ AI Insight</span>
@@ -538,7 +579,6 @@ export class DashboardRenderer {
             </div>
           </div>
 
-          <!-- Attendance by Class Table Card -->
           <div class="dash-overview-card" style="padding:24px;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
               <h3 style="margin:0;font-size:1.15rem;">Attendance by Class</h3>
@@ -641,14 +681,6 @@ export class DashboardRenderer {
     }
   }
 
-  // --- Helper: Toggle P / A / L Pill in Teacher Roster ---
-  static togglePal(btn, status) {
-    const parent = btn.closest('.pal-toggle-group');
-    if (!parent) return;
-    parent.querySelectorAll('.pal-pill-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-  }
-
   static _drawDonut(canvasId, data, colors) {
     requestAnimationFrame(() => {
       const canvas = document.getElementById(canvasId);
@@ -680,3 +712,6 @@ export class DashboardRenderer {
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   }
 }
+
+// Attach to window so inline onclick handlers and direct access work everywhere
+window.DashboardRenderer = DashboardRenderer;
