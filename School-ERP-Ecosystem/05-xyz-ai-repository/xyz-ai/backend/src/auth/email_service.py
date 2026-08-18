@@ -61,23 +61,34 @@ def send_otp_email(to_email: str, otp_code: str, name: str = "User") -> Tuple[bo
     if RESEND_API_KEY:
         try:
             import urllib.request
+            import urllib.error
             import json
+            
+            # Resend sandbox requires onboarding@resend.dev
+            from_sender = os.getenv("RESEND_FROM") or "XYZ AI <onboarding@resend.dev>"
+            
+            payload = json.dumps({
+                "from": from_sender,
+                "to": [to_email],
+                "subject": subject,
+                "html": html_content
+            }).encode("utf-8")
+            
             req = urllib.request.Request(
                 "https://api.resend.com/emails",
-                data=json.dumps({
-                    "from": SMTP_FROM_EMAIL or "XYZ AI <onboarding@resend.dev>",
-                    "to": [to_email],
-                    "subject": subject,
-                    "html": html_content
-                }).encode("utf-8"),
+                data=payload,
                 headers={
-                    "Authorization": f"Bearer {RESEND_API_KEY}",
+                    "Authorization": f"Bearer {RESEND_API_KEY.strip()}",
                     "Content-Type": "application/json"
                 }
             )
-            with urllib.request.urlopen(req, timeout=8) as resp:
+            with urllib.request.urlopen(req, timeout=10) as resp:
                 if resp.status in (200, 201):
+                    print(f"[EMAIL SUCCESS] Resend delivered OTP to {to_email}")
                     return True, "Email sent via Resend"
+        except urllib.error.HTTPError as he:
+            err_body = he.read().decode("utf-8", errors="ignore")
+            print(f"[EMAIL RESEND HTTP ERROR {he.code}]: {err_body}")
         except Exception as e:
             print(f"[EMAIL RESEND ERROR]: {e}")
 
