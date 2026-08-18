@@ -160,7 +160,12 @@ class SchoolApp {
       if (btn) { btn.textContent = 'Sending...'; btn.disabled = true; }
       try {
         const res = await ApiClient.sendOTP(email, name);
-        document.getElementById('regOtpField')?.classList.remove('hidden');
+        const otpField = document.getElementById('regOtpField');
+        if (otpField) otpField.classList.remove('hidden');
+        if (res.dev_hint) {
+          const codeInput = document.getElementById('regOtpCode');
+          if (codeInput) codeInput.value = res.dev_hint;
+        }
         if (msgEl) {
           msgEl.style.color = '#147B5D';
           msgEl.textContent = res.message || 'OTP sent! Please check your email inbox.';

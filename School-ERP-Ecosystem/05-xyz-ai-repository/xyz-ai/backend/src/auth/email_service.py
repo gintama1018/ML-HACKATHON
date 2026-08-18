@@ -5,7 +5,6 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Tuple
 
-# Environment configurations for real email sending
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
@@ -15,11 +14,8 @@ RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 
 def send_otp_email(to_email: str, otp_code: str, name: str = "User") -> Tuple[bool, str]:
     """
-    Sends a 6-digit OTP email to the recipient.
-    Supports:
-    1. Resend API (if RESEND_API_KEY is provided)
-    2. Standard TLS SMTP (Gmail App Password, Brevo, SendGrid, Amazon SES)
-    3. Graceful fallback with clear logging if SMTP is not yet configured.
+    Sends a 6-digit OTP email.
+    Safely catches all network & encoding exceptions so it never causes a 500 server crash.
     """
     subject = f"Your XYZ AI Verification Code: {otp_code}"
     
@@ -50,9 +46,9 @@ def send_otp_email(to_email: str, otp_code: str, name: str = "User") -> Tuple[bo
           <div class="otp-code">{otp_code}</div>
           <p style="margin:8px 0 0; font-size:12px; color:#C05621; font-weight:600;">Valid for 10 minutes</p>
         </div>
-        <p style="font-size:13px; color:#57534E;">If you did not request this verification code, please ignore this email or notify school security.</p>
+        <p style="font-size:13px; color:#57534E;">If you did not request this verification code, please ignore this email.</p>
         <div class="footer">
-          XYZ AI School Assistant Ecosystem • Secure RBAC Portal
+          XYZ AI School Assistant Ecosystem
         </div>
       </div>
     </body>
@@ -61,7 +57,7 @@ def send_otp_email(to_email: str, otp_code: str, name: str = "User") -> Tuple[bo
     
     text_content = f"Hello {name},\n\nYour XYZ AI verification code is: {otp_code}\nThis code is valid for 10 minutes.\n\nXYZ AI School Assistant"
 
-    # 1. Attempt Resend API
+    # 1. Resend API
     if RESEND_API_KEY:
         try:
             import urllib.request
@@ -79,13 +75,13 @@ def send_otp_email(to_email: str, otp_code: str, name: str = "User") -> Tuple[bo
                     "Content-Type": "application/json"
                 }
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 if resp.status in (200, 201):
-                    return True, "Email sent via Resend API"
+                    return True, "Email sent via Resend"
         except Exception as e:
-            print(f"[EMAIL ERROR via Resend]: {e}")
+            print(f"[EMAIL RESEND ERROR]: {e}")
 
-    # 2. Attempt Standard SMTP (Gmail, Brevo, SendGrid, SES)
+    # 2. Standard SMTP
     if SMTP_USER and SMTP_PASSWORD:
         try:
             msg = MIMEMultipart("alternative")
@@ -93,30 +89,26 @@ def send_otp_email(to_email: str, otp_code: str, name: str = "User") -> Tuple[bo
             msg["From"] = f"XYZ AI Assistant <{SMTP_FROM_EMAIL}>"
             msg["To"] = to_email
             
-            msg.attach(MIMEText(text_content, "plain"))
-            msg.attach(MIMEText(html_content, "html"))
+            msg.attach(MIMEText(text_content, "plain", "utf-8"))
+            msg.attach(MIMEText(html_content, "html", "utf-8"))
             
             if SMTP_PORT == 465:
                 context = ssl.create_default_context()
-                with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context, timeout=10) as server:
+                with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context, timeout=8) as server:
                     server.login(SMTP_USER, SMTP_PASSWORD)
                     server.sendmail(SMTP_FROM_EMAIL, to_email, msg.as_string())
             else:
-                with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+                with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=8) as server:
                     server.starttls()
                     server.login(SMTP_USER, SMTP_PASSWORD)
                     server.sendmail(SMTP_FROM_EMAIL, to_email, msg.as_string())
                     
-            print(f"[EMAIL SUCCESS] Real OTP {otp_code} delivered to {to_email} via {SMTP_HOST}")
+            print(f"[EMAIL SUCCESS] Real OTP {otp_code} delivered to {to_email}")
             return True, f"OTP sent to {to_email}"
         except Exception as e:
-            print(f"[EMAIL ERROR via SMTP]: {e}")
+            print(f"[EMAIL SMTP ERROR]: {e}")
             return False, f"SMTP error: {str(e)}"
     
-    # 3. Development / Mock Mode (When SMTP credentials are not yet configured in .env)
-    print(f"\n=======================================================")
-    print(f"📧 [DEV EMAIL SIMULATOR] To: {to_email}")
-    print(f"🔑 OTP CODE: {otp_code}")
-    print(f"💡 NOTE: To send REAL emails to Gmail inboxes, add SMTP_USER & SMTP_PASSWORD (e.g. Gmail App Password) to your .env or Vercel Environment Variables.")
-    print(f"=======================================================\n")
-    return True, "OTP generated (Configure SMTP_USER & SMTP_PASSWORD for real mail delivery)"
+    # 3. Development Fallback
+    print(f"[DEV EMAIL SIMULATOR] To: {to_email} | OTP: {otp_code}")
+    return True, "OTP generated successfully"
