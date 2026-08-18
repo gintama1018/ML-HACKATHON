@@ -1,16 +1,19 @@
-import hashlib
 from typing import Optional, Dict, Any
+from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from src.models import User, Student, ParentStudentLink, TeacherClassLink
 from src.auth.jwt_handler import create_access_token
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 def hash_password(password: str) -> str:
-    salt = "xyz_school_salt_2026"
-    return hashlib.sha256((salt + password).encode()).hexdigest()
+    """Hash password using bcrypt with per-user random salt (via passlib)."""
+    return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return hash_password(plain_password) == hashed_password
+    """Verify plain password against a bcrypt hash."""
+    return pwd_context.verify(plain_password, hashed_password)
 
 def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
     user = db.query(User).filter(User.email == email).first()
@@ -20,26 +23,8 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
         return None
     return user
 
-def login_user(db: Session, email: str, password: str) -> Dict[str, Any]:
-    user = authenticate_user(db, email, password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"}
-        )
-        
-    token_payload = {
-        "sub": user.id,
-        "email": user.email,
-        "name": user.name,
-        "role": user.role,
-        "language_pref": user.language_pref
-    }
-    
-    access_token = create_access_token(data=token_payload)
-    
-    # Extra role-specific metadata for frontend client bootstrapping
+def build_user_response(user: User, db: Session) -> Dict[str, Any]:
+    """Build the role-specific user profile dict for login/register responses."""
     role_meta = {}
     if user.role == "student" and user.student_profile:
         role_meta["student_id"] = user.student_profile.id
@@ -56,7 +41,7 @@ def login_user(db: Session, email: str, password: str) -> Dict[str, Any]:
                 "section": k.student.section,
                 "roll_no": k.student.roll_no
             }
-            for k in kids if k.student
+            for k in kids if k.student and k.student.user
         ]
     elif user.role == "teacher":
         classes = db.query(TeacherClassLink).filter(TeacherClassLink.teacher_id == user.id).all()
@@ -68,16 +53,35 @@ def login_user(db: Session, email: str, password: str) -> Dict[str, Any]:
             }
             for c in classes
         ]
-    
+        role_meta["is_verified"] = user.is_verified
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "role": user.role,
+        "language_pref": user.language_pref,
+        "is_verified": user.is_verified,
+        **role_meta
+    }
+
+def login_user(db: Session, email: str, password: str) -> Dict[str, Any]:
+    user = authenticate_user(db, email, password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    token_payload = {
+        "sub": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": user.role,
+        "language_pref": user.language_pref
+    }
+    access_token = create_access_token(data=token_payload)
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "name": user.name,
-            "email": user.email,
-            "role": user.role,
-            "language_pref": user.language_pref,
-            **role_meta
-        }
+        "user": build_user_response(user, db)
     }

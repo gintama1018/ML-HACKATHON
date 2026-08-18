@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "name": "xyz-ai-school-assistant",
+  "builds": [
+    {
+      "src": "backend/api/index.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "50mb"
+      }
+    },
+    {
+      "src": "frontend/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "backend/api/index.py"
+    },
+    {
+      "src": "/(.*\\.(js|css|png|jpg|svg|ico|woff2?))",
+      "dest": "frontend/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "frontend/index.html"
+    }
+  ],
+  "env": {
+    "DATABASE_URL": "@database_url",
+    "JWT_SECRET_KEY": "@jwt_secret_key",
+    "ALLOWED_ORIGINS": "@allowed_origins"
+  }
+}

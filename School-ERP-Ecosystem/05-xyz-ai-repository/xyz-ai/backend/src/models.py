@@ -58,6 +58,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     language_pref = Column(String(10), default="en", nullable=False)  # en, hi, ta, bn, etc.
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    is_verified = Column(Boolean, default=True, nullable=False)  # False for self-registered teachers pending approval
 
     # Relationships
     student_profile = relationship("Student", back_populates="user", uselist=False, cascade="all, delete-orphan")

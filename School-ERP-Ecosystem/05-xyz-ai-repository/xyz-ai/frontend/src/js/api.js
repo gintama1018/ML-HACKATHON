@@ -16,9 +16,7 @@ export class ApiClient {
   static getHeaders() {
     const headers = { 'Content-Type': 'application/json' };
     const token = this.getToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     return headers;
   }
 
@@ -29,8 +27,23 @@ export class ApiClient {
       body: JSON.stringify({ email, password })
     });
     if (!res.ok) {
-      const err = await res.json();
+      const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || 'Login failed');
+    }
+    const data = await res.json();
+    this.setToken(data.access_token);
+    return data;
+  }
+
+  static async register(payload) {
+    const res = await fetch(`${API_BASE}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Registration failed');
     }
     const data = await res.json();
     this.setToken(data.access_token);
@@ -47,14 +60,10 @@ export class ApiClient {
     const res = await fetch(`${API_BASE}/chat/message`, {
       method: 'POST',
       headers: this.getHeaders(),
-      body: JSON.stringify({
-        message,
-        conversation_id: conversationId,
-        language_pref: languagePref
-      })
+      body: JSON.stringify({ message, conversation_id: conversationId, language_pref: languagePref })
     });
     if (!res.ok) {
-      const err = await res.json();
+      const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || 'Failed to send message');
     }
     return res.json();
@@ -64,12 +73,7 @@ export class ApiClient {
     const res = await fetch(`${API_BASE}/voice/turn`, {
       method: 'POST',
       headers: this.getHeaders(),
-      body: JSON.stringify({
-        speech_text: speechText,
-        confidence_score: confidenceScore,
-        conversation_id: conversationId,
-        language_pref: languagePref
-      })
+      body: JSON.stringify({ speech_text: speechText, confidence_score: confidenceScore, conversation_id: conversationId, language_pref: languagePref })
     });
     if (!res.ok) throw new Error('Voice turn failed');
     return res.json();
@@ -77,19 +81,13 @@ export class ApiClient {
 
   static async getDashboard() {
     const res = await fetch(`${API_BASE}/portal/dashboard`, { headers: this.getHeaders() });
-    if (!res.ok) throw new Error('Failed to fetch dashboard data');
+    if (!res.ok) throw new Error('Dashboard fetch failed');
     return res.json();
   }
 
   static async getLanguages() {
     const res = await fetch(`${API_BASE}/portal/languages`);
     if (!res.ok) throw new Error('Failed to fetch languages');
-    return res.json();
-  }
-
-  static async getEscalations() {
-    const res = await fetch(`${API_BASE}/escalations`, { headers: this.getHeaders() });
-    if (!res.ok) throw new Error('Failed to fetch escalations');
     return res.json();
   }
 
@@ -103,9 +101,18 @@ export class ApiClient {
     return res.json();
   }
 
-  static async getAuditLogs(limit = 20) {
+  static async getAuditLogs(limit = 25) {
     const res = await fetch(`${API_BASE}/audit/logs?limit=${limit}`, { headers: this.getHeaders() });
     if (!res.ok) throw new Error('Failed to fetch audit logs');
+    return res.json();
+  }
+
+  static async approveTeacher(userId) {
+    const res = await fetch(`${API_BASE}/portal/admin/teachers/${userId}/approve`, {
+      method: 'POST',
+      headers: this.getHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to approve teacher');
     return res.json();
   }
 }

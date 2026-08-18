@@ -97,7 +97,37 @@ def get_user_dashboard(
                     "created_at": e.created_at.isoformat()
                 }
                 for e in recent_escalations
+            ],
+            "pending_teacher_approvals": [
+                {
+                    "user_id": t.id,
+                    "name": t.name,
+                    "email": t.email,
+                    "created_at": t.created_at.isoformat()
+                }
+                for t in db.query(User).filter(
+                    User.role == "teacher",
+                    User.is_verified == False  # noqa: E712
+                ).order_by(User.created_at.desc()).all()
             ]
         }
         
     raise HTTPException(status_code=400, detail="Unknown role")
+
+@router.post("/admin/teachers/{user_id}/approve", tags=["Admin"])
+def approve_teacher(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Principal-only: approve a self-registered teacher account."""
+    if current_user.role != UserRole.PRINCIPAL.value:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only principals can approve teacher accounts.")
+    teacher = db.query(User).filter(User.id == user_id, User.role == "teacher").first()
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found.")
+    if teacher.is_verified:
+        return {"message": "Teacher is already verified.", "user_id": user_id}
+    teacher.is_verified = True
+    db.commit()
+    return {"message": f"Teacher {teacher.name} has been approved.", "user_id": user_id}

@@ -22,10 +22,8 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "sqlite:////tmp/school_erp.db" if os.getenv("VERCEL") else "sqlite:///./school_erp.db"
-    )
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./school_erp.db")
+
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     
     # LLM Provider Keys

@@ -1,6 +1,5 @@
 import os
 import sys
-import hashlib
 from datetime import datetime, timezone, date, timedelta
 import random
 
@@ -9,17 +8,13 @@ backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
+from src.auth.auth_service import hash_password
 from src.database import SessionLocal, init_db, engine, Base
 from src.models import (
     User, Student, ParentStudentLink, TeacherClassLink,
     Attendance, Conversation, Message, Escalation, AuditLog,
     UserRole, AttendanceStatus, EscalationTarget, EscalationStatus
 )
-
-def hash_password(password: str) -> str:
-    """Deterministic secure hash for seed credentials."""
-    salt = "xyz_school_salt_2026"
-    return hashlib.sha256((salt + password).encode()).hexdigest()
 
 def seed_database():
     print("Initializing database tables...")

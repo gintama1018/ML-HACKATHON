@@ -154,3 +154,51 @@ def test_audit_logging_of_denials(db):
     assert latest.result == AuditResult.DENIED.value
     assert latest.user_id == student_user.id
     assert latest.action == "mark_attendance"
+
+def test_bcrypt_per_user_salt_produces_unique_hashes():
+    """Prove bcrypt uses per-user salt: same password → different hashes."""
+    from src.auth.auth_service import hash_password, verify_password
+    h1 = hash_password("School@123")
+    h2 = hash_password("School@123")
+    assert h1 != h2, "bcrypt hashes for the same password should differ (per-user salt)"
+    assert verify_password("School@123", h1)
+    assert verify_password("School@123", h2)
+
+def test_principal_self_registration_rejected(client):
+    """Principal role must not be self-registerable via the public /register endpoint."""
+    resp = client.post("/api/v1/auth/register", json={
+        "name": "Fake Principal",
+        "email": "fake.principal@test.com",
+        "password": "School@123",
+        "role": "principal"
+    })
+    assert resp.status_code == 403
+
+def test_student_self_registration_succeeds(client):
+    """Students can self-register and immediately receive a valid JWT."""
+    resp = client.post("/api/v1/auth/register", json={
+        "name": "New Student Test",
+        "email": "new.student.test@xyzschool.edu",
+        "password": "School@123",
+        "role": "student",
+        "class_name": "10",
+        "section": "C",
+        "roll_no": "999"
+    })
+    assert resp.status_code == 201
+    data = resp.json()
+    assert "access_token" in data
+    assert data["user"]["role"] == "student"
+    assert data["user"]["class_name"] == "10"
+
+def test_teacher_self_registration_is_unverified(client):
+    """Self-registered teachers start with is_verified=False."""
+    resp = client.post("/api/v1/auth/register", json={
+        "name": "New Teacher Test",
+        "email": "new.teacher.test@xyzschool.edu",
+        "password": "School@123",
+        "role": "teacher"
+    })
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["user"]["is_verified"] == False
